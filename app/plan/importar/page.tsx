@@ -71,6 +71,13 @@ export default async function ImportPlanPage() {
               </Button>
             </form>
 
+            <Link
+              href="/plan/nuevo"
+              className={cn(buttonVariants({ variant: "secondary" }), "rounded-full")}
+            >
+              Crear rutina manualmente
+            </Link>
+
             <div className="rounded-2xl border border-dashed border-border/70 bg-background/60 p-4 text-sm text-muted-foreground">
               Cada fila representa un ejercicio. Si el archivo es valido, se crea un nuevo
               plan activo y el anterior queda archivado. <code>planned_sets</code> es

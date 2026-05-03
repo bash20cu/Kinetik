@@ -1,7 +1,7 @@
 "use client"
 
-import { Check, Dumbbell, Flame, Repeat2 } from "lucide-react"
-import { useMemo, useState } from "react"
+import { Check, ChevronRight, Dumbbell, Lock, Repeat2 } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
 
 import { RepsField } from "@/components/reps-field"
 import { Badge } from "@/components/ui/badge"
@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 
 type ExerciseActionCardProps = {
+  blockName: string
+  orderLabel: string
   exercise: {
     id: string
     name: string
@@ -25,16 +27,28 @@ type ExerciseActionCardProps = {
       note: string | null
     } | null
   }
+  flowState: "completed" | "current" | "locked"
+  onSeriesDone: (payload: { completedExercise: boolean }) => void
+  onCompleteExercise: () => void
 }
 
-function triggerRest(seconds = 90) {
-  window.dispatchEvent(new CustomEvent("kinetik:start-rest", { detail: { seconds } }))
-}
-
-export function ExerciseActionCard({ exercise }: ExerciseActionCardProps) {
+export function ExerciseActionCard({
+  blockName,
+  orderLabel,
+  exercise,
+  flowState,
+  onSeriesDone,
+  onCompleteExercise
+}: ExerciseActionCardProps) {
   const [status, setStatus] = useState(exercise.log?.status ?? "pending")
   const [setsCompleted, setSetsCompleted] = useState(exercise.log?.setsCompleted ?? 0)
   const targetSets = exercise.plannedSets ?? 0
+
+  useEffect(() => {
+    if (flowState === "completed" && status !== "completed") {
+      setStatus("completed")
+    }
+  }, [flowState, status])
 
   const completionTone = useMemo(() => {
     if (status === "completed") return "success"
@@ -45,20 +59,31 @@ export function ExerciseActionCard({ exercise }: ExerciseActionCardProps) {
 
   function handleSeriesDone() {
     const nextSets = setsCompleted + 1
+    const completedExercise = targetSets > 0 && nextSets >= targetSets
     setSetsCompleted(nextSets)
-    setStatus(targetSets > 0 && nextSets >= targetSets ? "completed" : "in_progress")
-    triggerRest()
+    setStatus(completedExercise ? "completed" : "in_progress")
+    onSeriesDone({ completedExercise })
   }
 
+  const locked = flowState === "locked"
+  const compact = flowState === "completed"
+
   return (
-    <div className="rounded-[1.7rem] border border-border/70 bg-background/60 p-4">
+    <div
+      className={`rounded-[1.7rem] border border-border/70 p-4 transition-all ${
+        locked ? "bg-muted/20 opacity-65" : compact ? "bg-card/70" : "bg-background/60"
+      }`}
+    >
       <input type="hidden" name={`sets-${exercise.id}`} value={setsCompleted} />
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline">{orderLabel}</Badge>
+            <Badge variant="secondary">{blockName}</Badge>
             <h3 className="text-xl uppercase">{exercise.name}</h3>
             <Badge variant={completionTone}>{status}</Badge>
+            {locked ? <Lock className="size-4 text-muted-foreground" /> : null}
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             {exercise.variant ? <Badge variant="secondary">{exercise.variant}</Badge> : null}
@@ -70,6 +95,7 @@ export function ExerciseActionCard({ exercise }: ExerciseActionCardProps) {
           ) : null}
         </div>
 
+        {!locked ? (
         <div className="grid gap-2 sm:grid-cols-2 lg:w-[300px]">
           <Button type="button" className="rounded-2xl" onClick={handleSeriesDone}>
             <Check className="size-4" />
@@ -81,15 +107,21 @@ export function ExerciseActionCard({ exercise }: ExerciseActionCardProps) {
             className="rounded-2xl"
             onClick={() => {
               setStatus("completed")
-              triggerRest()
+              onCompleteExercise()
             }}
           >
-            <Flame className="size-4" />
+            <ChevronRight className="size-4" />
             Completar
           </Button>
         </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-border/70 px-4 py-3 text-sm text-muted-foreground">
+            Se desbloquea cuando termines la tarjeta actual.
+          </div>
+        )}
       </div>
 
+      {!compact ? (
       <div className="mt-5 grid gap-4 xl:grid-cols-[180px_minmax(0,1fr)_220px]">
         <div className="space-y-3">
           <div className="rounded-[1.35rem] border border-border/70 bg-card p-4">
@@ -112,6 +144,7 @@ export function ExerciseActionCard({ exercise }: ExerciseActionCardProps) {
               value={status}
               onChange={(event) => setStatus(event.target.value as typeof status)}
               className="status-select"
+              disabled={locked}
             >
               <option value="pending">Pending</option>
               <option value="in_progress">In progress</option>
@@ -130,6 +163,7 @@ export function ExerciseActionCard({ exercise }: ExerciseActionCardProps) {
               exerciseId={exercise.id}
               defaultValue={exercise.log?.reps ?? ""}
               plannedValue={exercise.plannedReps}
+              disabled={locked}
             />
           </div>
 
@@ -142,6 +176,7 @@ export function ExerciseActionCard({ exercise }: ExerciseActionCardProps) {
               name={`note-${exercise.id}`}
               defaultValue={exercise.log?.note ?? ""}
               placeholder="Tecnica, sensaciones, ajuste de carga..."
+              disabled={locked}
             />
           </div>
         </div>
@@ -159,6 +194,7 @@ export function ExerciseActionCard({ exercise }: ExerciseActionCardProps) {
                 defaultValue={exercise.log?.weight ?? ""}
                 placeholder="20 kg / 2 discos"
                 className="pl-9"
+                disabled={locked}
               />
             </div>
           </div>
@@ -174,6 +210,13 @@ export function ExerciseActionCard({ exercise }: ExerciseActionCardProps) {
           </div>
         </div>
       </div>
+      ) : (
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-[1.35rem] border border-border/70 bg-background/50 px-4 py-3 text-sm text-muted-foreground">
+          <span>Sets: {setsCompleted}</span>
+          <span>Reps: {exercise.log?.reps ?? exercise.plannedReps ?? "--"}</span>
+          <span>Peso: {exercise.log?.weight ?? "--"}</span>
+        </div>
+      )}
     </div>
   )
 }

@@ -10,6 +10,7 @@ type RepsFieldProps = {
   exerciseId: string
   defaultValue: string
   plannedValue: string | null
+  disabled?: boolean
 }
 
 function toNumericValue(value: string) {
@@ -17,7 +18,12 @@ function toNumericValue(value: string) {
   return match ? Number(match[0]) : 0
 }
 
-export function RepsField({ exerciseId, defaultValue, plannedValue }: RepsFieldProps) {
+export function RepsField({
+  exerciseId,
+  defaultValue,
+  plannedValue,
+  disabled = false
+}: RepsFieldProps) {
   const initial = defaultValue || plannedValue || ""
   const [value, setValue] = useState(initial)
 
@@ -37,6 +43,7 @@ export function RepsField({ exerciseId, defaultValue, plannedValue }: RepsFieldP
           type="button"
           variant="outline"
           className="rounded-2xl"
+          disabled={disabled}
           onClick={() => setValue(String(Math.max(0, numericValue - 1)))}
         >
           <Minus className="size-4" />
@@ -45,6 +52,7 @@ export function RepsField({ exerciseId, defaultValue, plannedValue }: RepsFieldP
           type="button"
           variant="secondary"
           className="rounded-2xl"
+          disabled={disabled}
           onClick={() => setValue(String(numericValue + 1))}
         >
           <Plus className="size-4" />
@@ -53,6 +61,7 @@ export function RepsField({ exerciseId, defaultValue, plannedValue }: RepsFieldP
           type="button"
           variant="ghost"
           className="rounded-2xl"
+          disabled={disabled}
           onClick={() => setValue(plannedValue || "0")}
         >
           <RotateCcw className="size-4" />
@@ -65,6 +74,7 @@ export function RepsField({ exerciseId, defaultValue, plannedValue }: RepsFieldP
         value={value}
         onChange={(event) => setValue(event.target.value)}
         placeholder="12 / 10-8 / 45s"
+        disabled={disabled}
       />
     </div>
   )

@@ -47,6 +47,17 @@ export type RoutinePlan = {
   days: RoutineDay[];
 };
 
+export type RoutinePlanSummary = {
+  id: string;
+  userId: string;
+  name: string;
+  activeFrom: string;
+  status: "active" | "archived";
+  dayCount: number;
+  exerciseCount: number;
+  sessionCount: number;
+};
+
 export type WorkoutSession = {
   id: string;
   userId: string;

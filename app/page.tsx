@@ -95,6 +95,12 @@ export default async function HomePage() {
               >
                 Importar CSV
               </Link>
+              <Link
+                href="/plan/nuevo"
+                className={cn(buttonVariants(), "rounded-full")}
+              >
+                Crear rutina
+              </Link>
             </div>
           </CardContent>
         </Card>

@@ -13,7 +13,7 @@ coverage
 *.tsbuildinfo
 *.env
 *.env.local
-*.env.development
-*.env.production
+*.env.dev
+*.env.prod
 *.env.test
 *.pem   

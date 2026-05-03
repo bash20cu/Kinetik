@@ -1,7 +1,7 @@
 "use client"
 
 import { Pause, Play, RotateCcw, TimerReset } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useMemo } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,61 +15,33 @@ function formatTime(totalSeconds: number) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
 }
 
-export function RestTimerCard() {
-  const [duration, setDuration] = useState(90)
-  const [remaining, setRemaining] = useState(90)
-  const [running, setRunning] = useState(false)
+type RestTimerCardProps = {
+  duration: number
+  remaining: number
+  running: boolean
+  visible?: boolean
+  onToggle: () => void
+  onReset: () => void
+  onPreset: (seconds: number) => void
+}
 
-  useEffect(() => {
-    if (!running) return
-
-    const interval = window.setInterval(() => {
-      setRemaining((current) => {
-        if (current <= 1) {
-          window.clearInterval(interval)
-          setRunning(false)
-          return 0
-        }
-
-        return current - 1
-      })
-    }, 1000)
-
-    return () => window.clearInterval(interval)
-  }, [running])
-
-  useEffect(() => {
-    const handler = (event: Event) => {
-      const customEvent = event as CustomEvent<{ seconds?: number }>
-      const seconds = customEvent.detail?.seconds ?? 90
-
-      setDuration(seconds)
-      setRemaining(seconds)
-      setRunning(true)
-    }
-
-    window.addEventListener("kinetik:start-rest", handler as EventListener)
-    return () => window.removeEventListener("kinetik:start-rest", handler as EventListener)
-  }, [])
+export function RestTimerCard({
+  duration,
+  remaining,
+  running,
+  visible = true,
+  onToggle,
+  onReset,
+  onPreset
+}: RestTimerCardProps) {
 
   const progress = useMemo(() => {
     if (duration <= 0) return 0
     return Math.max(0, Math.min(100, ((duration - remaining) / duration) * 100))
   }, [duration, remaining])
 
-  function startPreset(seconds: number) {
-    setDuration(seconds)
-    setRemaining(seconds)
-    setRunning(true)
-  }
-
-  function resetTimer() {
-    setRemaining(duration)
-    setRunning(false)
-  }
-
   return (
-    <Card className="glass-card overflow-hidden">
+    <Card className={cn("glass-card overflow-hidden transition-all", !visible && "opacity-60")}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -96,7 +68,7 @@ export function RestTimerCard() {
               key={seconds}
               type="button"
               variant={duration === seconds ? "default" : "outline"}
-              onClick={() => startPreset(seconds)}
+              onClick={() => onPreset(seconds)}
               className="rounded-2xl"
             >
               {seconds}s
@@ -108,13 +80,13 @@ export function RestTimerCard() {
           <Button
             type="button"
             variant="secondary"
-            onClick={() => setRunning((current) => !current)}
+            onClick={onToggle}
             className="rounded-2xl"
           >
             {running ? <Pause className="size-4" /> : <Play className="size-4" />}
             {running ? "Pausar" : "Iniciar"}
           </Button>
-          <Button type="button" variant="outline" onClick={resetTimer} className="rounded-2xl">
+          <Button type="button" variant="outline" onClick={onReset} className="rounded-2xl">
             <RotateCcw className="size-4" />
             Reset
           </Button>

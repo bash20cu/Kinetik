@@ -16,10 +16,32 @@ import type {
   InAppAlert,
   PlanImport,
   RoutinePlan,
+  RoutinePlanSummary,
   SessionDetail,
   WeeklyCalendarDay,
   WorkoutSession
 } from "@/lib/types";
+
+type ManualRoutineExerciseInput = {
+  name: string;
+  groupName: string;
+  variant?: string | null;
+  plannedSets?: number | null;
+  plannedReps?: string | null;
+  notes?: string | null;
+};
+
+type ManualRoutineBlockInput = {
+  name: string;
+  blockOrder: number;
+  exercises: ManualRoutineExerciseInput[];
+};
+
+type ManualRoutineDayInput = {
+  name: string;
+  dayOrder: number;
+  blocks: ManualRoutineBlockInput[];
+};
 
 function today() {
   const now = new Date();
@@ -136,6 +158,47 @@ function mapRoutinePlan(plan: Prisma.RoutinePlanGetPayload<{
   };
 }
 
+function mapRoutinePlanSummary(plan: Prisma.RoutinePlanGetPayload<{
+  include: {
+    days: {
+      include: {
+        blocks: {
+          include: {
+            _count: {
+              select: {
+                exercises: true;
+              };
+            };
+          };
+        };
+      };
+    };
+    _count: {
+      select: {
+        sessions: true;
+      };
+    };
+  };
+}>): RoutinePlanSummary {
+  const exerciseCount = plan.days.reduce(
+    (dayTotal, day) =>
+      dayTotal +
+      day.blocks.reduce((blockTotal, block) => blockTotal + block._count.exercises, 0),
+    0
+  );
+
+  return {
+    id: plan.id,
+    userId: plan.userId,
+    name: plan.name,
+    activeFrom: toDateString(plan.activeFrom),
+    status: plan.status,
+    dayCount: plan.days.length,
+    exerciseCount,
+    sessionCount: plan._count.sessions
+  };
+}
+
 export async function createAlert(input: {
   userId: string;
   type: InAppAlert["type"];
@@ -196,6 +259,67 @@ export async function getActivePlan(userId: string): Promise<RoutinePlan | null>
   });
 
   return plan ? mapRoutinePlan(plan) : null;
+}
+
+export async function getPlanById(userId: string, planId: string): Promise<RoutinePlan | null> {
+  const plan = await prisma.routinePlan.findFirst({
+    where: {
+      id: planId,
+      userId
+    },
+    include: {
+      days: {
+        include: {
+          blocks: {
+            include: {
+              exercises: true
+            }
+          }
+        }
+      }
+    }
+  });
+
+  return plan ? mapRoutinePlan(plan) : null;
+}
+
+export async function getRoutinePlans(userId: string): Promise<RoutinePlanSummary[]> {
+  const plans = await prisma.routinePlan.findMany({
+    where: {
+      userId
+    },
+    orderBy: [{ activeFrom: "desc" }, { createdAt: "desc" }],
+    include: {
+      days: {
+        include: {
+          blocks: {
+            include: {
+              _count: {
+                select: {
+                  exercises: true
+                }
+              }
+            }
+          }
+        }
+      },
+      _count: {
+        select: {
+          sessions: true
+        }
+      }
+    }
+  });
+
+  return plans
+    .map(mapRoutinePlanSummary)
+    .sort((left, right) => {
+      if (left.status !== right.status) {
+        return left.status === RoutinePlanStatus.active ? -1 : 1;
+      }
+
+      return right.activeFrom.localeCompare(left.activeFrom);
+    });
 }
 
 export async function getLatestSession(userId: string): Promise<WorkoutSession | null> {
@@ -629,6 +753,215 @@ function groupCsvRows(rows: CsvExerciseRow[]) {
     }));
 }
 
+async function createStructuredPlan(
+  userId: string,
+  planName: string,
+  groupedDays: Array<{
+    name: string;
+    dayOrder: number;
+    blocks: Array<{
+      name: string;
+      blockOrder: number;
+      exercises: ManualRoutineExerciseInput[];
+    }>;
+  }>
+) {
+  await prisma.$transaction(async (tx) => {
+    await tx.routinePlan.updateMany({
+      where: {
+        userId,
+        status: RoutinePlanStatus.active
+      },
+      data: {
+        status: RoutinePlanStatus.archived
+      }
+    });
+
+    await tx.routinePlan.create({
+      data: {
+        userId,
+        name: planName,
+        activeFrom: today(),
+        status: RoutinePlanStatus.active,
+        days: {
+          create: groupedDays.map((day) => ({
+            name: day.name,
+            dayOrder: day.dayOrder,
+            blocks: {
+              create: day.blocks.map((block) => ({
+                name: block.name,
+                blockOrder: block.blockOrder,
+                exercises: {
+                  create: block.exercises
+                }
+              }))
+            }
+          }))
+        }
+      }
+    });
+  });
+}
+
+async function archivePlanById(userId: string, planId: string) {
+  const plan = await prisma.routinePlan.findFirst({
+    where: {
+      id: planId,
+      userId
+    }
+  });
+
+  if (!plan) {
+    throw new Error("No encontramos la rutina que quieres archivar.");
+  }
+
+  if (plan.status === RoutinePlanStatus.archived) {
+    return plan;
+  }
+
+  return prisma.routinePlan.update({
+    where: {
+      id: plan.id
+    },
+    data: {
+      status: RoutinePlanStatus.archived
+    }
+  });
+}
+
+export async function createManualPlan(
+  userId: string,
+  planName: string,
+  days: ManualRoutineDayInput[]
+) {
+  const normalizedName = planName.trim() || `Plan ${toDateString(today())}`;
+
+  const groupedDays = days
+    .filter((day) => day.name.trim())
+    .map((day, dayIndex) => ({
+      name: day.name.trim(),
+      dayOrder: day.dayOrder || dayIndex + 1,
+      blocks: day.blocks
+        .filter((block) => block.name.trim())
+        .map((block, blockIndex) => ({
+          name: block.name.trim(),
+          blockOrder: block.blockOrder || blockIndex + 1,
+          exercises: block.exercises
+            .filter((exercise) => exercise.name.trim())
+            .map((exercise) => ({
+              name: exercise.name.trim(),
+              groupName: exercise.groupName.trim() || block.name.trim(),
+              variant: exercise.variant?.trim() || null,
+              plannedSets:
+                typeof exercise.plannedSets === "number" && exercise.plannedSets > 0
+                  ? exercise.plannedSets
+                  : null,
+              plannedReps: exercise.plannedReps?.trim() || null,
+              notes: exercise.notes?.trim() || null
+            }))
+        }))
+        .filter((block) => block.exercises.length > 0)
+    }))
+    .filter((day) => day.blocks.length > 0);
+
+  if (groupedDays.length === 0) {
+    throw new Error("Debes crear al menos un dia con un bloque y un ejercicio.");
+  }
+
+  await createStructuredPlan(userId, normalizedName, groupedDays);
+
+  await createAlert({
+    userId,
+    type: "success",
+    title: "Rutina creada",
+    body: `El plan "${normalizedName}" ya esta activo y listo para entrenar.`
+  });
+}
+
+export async function updateRoutinePlan(
+  userId: string,
+  sourcePlanId: string,
+  planName: string,
+  days: ManualRoutineDayInput[]
+) {
+  const sourcePlan = await prisma.routinePlan.findFirst({
+    where: {
+      id: sourcePlanId,
+      userId
+    }
+  });
+
+  if (!sourcePlan) {
+    throw new Error("No encontramos la rutina que quieres modificar.");
+  }
+
+  await createManualPlan(userId, planName, days);
+
+  await createAlert({
+    userId,
+    type: "info",
+    title: "Rutina versionada",
+    body: `Guardamos una nueva version basada en "${sourcePlan.name}". La anterior queda archivada para preservar tu historial.`
+  });
+}
+
+export async function archiveRoutinePlan(userId: string, planId: string) {
+  const plan = await archivePlanById(userId, planId);
+
+  await createAlert({
+    userId,
+    type: "warning",
+    title: "Rutina archivada",
+    body: `La rutina "${plan.name}" se movio a archivadas.`
+  });
+}
+
+export async function activateRoutinePlan(userId: string, planId: string) {
+  const plan = await prisma.routinePlan.findFirst({
+    where: {
+      id: planId,
+      userId
+    }
+  });
+
+  if (!plan) {
+    throw new Error("No encontramos la rutina que quieres activar.");
+  }
+
+  if (plan.status === RoutinePlanStatus.active) {
+    return;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.routinePlan.updateMany({
+      where: {
+        userId,
+        status: RoutinePlanStatus.active
+      },
+      data: {
+        status: RoutinePlanStatus.archived
+      }
+    });
+
+    await tx.routinePlan.update({
+      where: {
+        id: plan.id
+      },
+      data: {
+        status: RoutinePlanStatus.active,
+        activeFrom: today()
+      }
+    });
+  });
+
+  await createAlert({
+    userId,
+    type: "success",
+    title: "Rutina reactivada",
+    body: `La rutina "${plan.name}" vuelve a estar activa.`
+  });
+}
+
 export async function importPlanFromCsv(userId: string, fileName: string, csvText: string) {
   const importItem = await prisma.planImport.create({
     data: {
@@ -665,50 +998,16 @@ export async function importPlanFromCsv(userId: string, fileName: string, csvTex
 
   const groupedDays = groupCsvRows(parsed.rows);
 
-  await prisma.$transaction(async (tx) => {
-    await tx.routinePlan.updateMany({
-      where: {
-        userId,
-        status: RoutinePlanStatus.active
-      },
-      data: {
-        status: RoutinePlanStatus.archived
-      }
-    });
+  await createStructuredPlan(userId, `Plan ${toDateString(today())}`, groupedDays);
 
-    await tx.routinePlan.create({
-      data: {
-        userId,
-        name: `Plan ${toDateString(today())}`,
-        activeFrom: today(),
-        status: RoutinePlanStatus.active,
-        days: {
-          create: groupedDays.map((day) => ({
-            name: day.name,
-            dayOrder: day.dayOrder,
-            blocks: {
-              create: day.blocks.map((block) => ({
-                name: block.name,
-                blockOrder: block.blockOrder,
-                exercises: {
-                  create: block.exercises
-                }
-              }))
-            }
-          }))
-        }
-      }
-    });
-
-    await tx.planImport.update({
-      where: {
-        id: importItem.id
-      },
-      data: {
-        status: PlanImportStatus.success,
-        errorSummary: null
-      }
-    });
+  await prisma.planImport.update({
+    where: {
+      id: importItem.id
+    },
+    data: {
+      status: PlanImportStatus.success,
+      errorSummary: null
+    }
   });
 
   await createAlert({

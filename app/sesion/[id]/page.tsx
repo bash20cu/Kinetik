@@ -2,14 +2,9 @@ import { notFound } from "next/navigation"
 
 import { saveSessionAction } from "@/app/actions"
 import { AppShell } from "@/components/app-shell"
-import { ExerciseActionCard } from "@/components/exercise-action-card"
-import { RestTimerCard } from "@/components/rest-timer-card"
-import { SessionProgressBar } from "@/components/session-progress-bar"
+import { SessionWorkoutFlow } from "@/components/session-workout-flow"
 import { SetupCallout } from "@/components/setup-callout"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Textarea } from "@/components/ui/textarea"
 import { requireUser } from "@/lib/auth"
 import { getSessionDetail, getUnreadAlerts } from "@/lib/data"
 import { isDatabaseConfigured } from "@/lib/env"
@@ -46,12 +41,6 @@ export default async function SessionPage({ params }: SessionPageProps) {
   }
 
   const saveAction = saveSessionAction.bind(null, session.id)
-  const totalExercises = session.blocks.reduce((sum, block) => sum + block.exercises.length, 0)
-  const completedExercises = session.blocks.reduce(
-    (sum, block) =>
-      sum + block.exercises.filter((exercise) => exercise.log?.status === "completed").length,
-    0
-  )
 
   return (
     <AppShell user={user} alerts={alerts}>
@@ -68,76 +57,7 @@ export default async function SessionPage({ params }: SessionPageProps) {
         </div>
       </div>
 
-      <form action={saveAction} className="panel-grid">
-        <div className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
-        <Card className="hero-panel">
-          <CardHeader>
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="eyebrow">Workout flow</p>
-                <CardTitle className="text-4xl">Ejecuta la sesion</CardTitle>
-              </div>
-              <Badge variant={sessionVariant(session.status)}>{session.status}</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <SessionProgressBar total={totalExercises} completed={completedExercises} />
-            <div className="grid gap-4 md:grid-cols-[220px_1fr]">
-              <div className="grid gap-2">
-                <label htmlFor="sessionStatus" className="text-sm font-semibold">
-                  Estado general
-                </label>
-                <select
-                  id="sessionStatus"
-                  name="sessionStatus"
-                  defaultValue={session.status}
-                  className="status-select"
-                >
-                  <option value="planned">Planned</option>
-                  <option value="in_progress">In progress</option>
-                  <option value="completed">Completed</option>
-                </select>
-              </div>
-
-              <div className="grid gap-2">
-                <label htmlFor="generalNotes" className="text-sm font-semibold">
-                  Notas generales
-                </label>
-                <Textarea
-                  id="generalNotes"
-                  name="generalNotes"
-                  defaultValue={session.generalNotes ?? ""}
-                  placeholder="Como te sentiste, ajustes, molestias o mejoras..."
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <RestTimerCard />
-        </div>
-
-        {session.blocks.map((block) => (
-          <Card key={block.id} className="glass-card">
-            <CardHeader className="border-b border-border/60">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <CardTitle>{block.name}</CardTitle>
-                <Badge variant="outline">{block.exercises.length} ejercicios</Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="grid gap-4 pt-6">
-              {block.exercises.map((exercise) => (
-                <ExerciseActionCard key={exercise.id} exercise={exercise} />
-              ))}
-            </CardContent>
-          </Card>
-        ))}
-
-        <div className="flex justify-end">
-          <Button type="submit" className="rounded-full px-6">
-            Guardar sesion
-          </Button>
-        </div>
-      </form>
+      <SessionWorkoutFlow session={session} action={saveAction} />
     </AppShell>
   )
 }
