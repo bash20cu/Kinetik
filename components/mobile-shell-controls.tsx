@@ -44,7 +44,7 @@ export function MobileShellControls({ alerts }: MobileShellControlsProps) {
           size="icon"
           aria-label="Mostrar alertas"
           onClick={() => setAlertsOpen((current) => !current)}
-          className="rounded-full"
+          className="size-9 rounded-full"
         >
           <Bell className="size-4" />
         </Button>
@@ -61,13 +61,13 @@ export function MobileShellControls({ alerts }: MobileShellControlsProps) {
         size="icon"
         aria-label={menuOpen ? "Cerrar menu" : "Abrir menu"}
         onClick={() => setMenuOpen((current) => !current)}
-        className="rounded-full"
+        className="size-9 rounded-full"
       >
         {menuOpen ? <X className="size-4" /> : <Menu className="size-4" />}
       </Button>
 
       {alertsOpen ? (
-        <Card className="absolute left-4 right-4 top-[5.2rem] z-40 p-3 shadow-glow">
+        <Card className="absolute left-4 right-4 top-[4.6rem] z-40 p-3 shadow-glow">
           <div className="mb-3 flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold">Notificaciones</p>
@@ -103,10 +103,13 @@ export function MobileShellControls({ alerts }: MobileShellControlsProps) {
       ) : null}
 
       {menuOpen ? (
-        <Card className="absolute left-4 right-4 top-[5.2rem] z-40 p-3 shadow-glow">
+        <Card className="absolute left-4 right-4 top-[4.6rem] z-40 p-3 shadow-glow">
           <nav className="grid gap-2" aria-label="Navegacion movil">
             <div onClick={() => setMenuOpen(false)}>
               <NavLink href="/" label="Hoy" />
+            </div>
+            <div onClick={() => setMenuOpen(false)}>
+              <NavLink href="/entrenar/libre" label="Libre" />
             </div>
             <div onClick={() => setMenuOpen(false)}>
               <NavLink href="/rutina" label="Rutina" />

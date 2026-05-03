@@ -8,8 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { RoutinePlan } from "@/lib/types";
+import { EXERCISE_GROUPS, EXERCISE_LIBRARY, VARIANT_OPTIONS } from "@/lib/workout-presets";
 
 const CUSTOM_EXERCISE_VALUE = "__custom__";
+const CUSTOM_VARIANT_VALUE = "__custom_variant__";
 const WEEKDAY_OPTIONS = [
   "Lunes",
   "Martes",
@@ -19,77 +21,6 @@ const WEEKDAY_OPTIONS = [
   "Sabado",
   "Domingo"
 ] as const;
-
-const EXERCISE_LIBRARY = [
-  { name: "Press plano", groupName: "Pecho" },
-  { name: "Press inclinado", groupName: "Pecho" },
-  { name: "Press declinado", groupName: "Pecho" },
-  { name: "Aperturas", groupName: "Pecho" },
-  { name: "Push ups", groupName: "Pecho" },
-  { name: "Cross over", groupName: "Pecho" },
-  { name: "Pull over", groupName: "Pecho" },
-  { name: "Dominadas", groupName: "Espalda" },
-  { name: "Jalon abierto", groupName: "Espalda" },
-  { name: "Jalon cerrado", groupName: "Espalda" },
-  { name: "Remo barra", groupName: "Espalda" },
-  { name: "Remo mancuerna", groupName: "Espalda" },
-  { name: "Remo polea", groupName: "Espalda" },
-  { name: "Remo maquina", groupName: "Espalda" },
-  { name: "Remo T maquina", groupName: "Espalda" },
-  { name: "Remo banca declinada", groupName: "Espalda" },
-  { name: "Sentadilla", groupName: "Pierna" },
-  { name: "Sentadilla bulgara", groupName: "Pierna" },
-  { name: "Press de pierna", groupName: "Pierna" },
-  { name: "Extension de rodilla", groupName: "Pierna" },
-  { name: "Peso muerto", groupName: "Pierna" },
-  { name: "Flexion de rodilla", groupName: "Pierna" },
-  { name: "Elevacion de cadera", groupName: "Pierna" },
-  { name: "Extension cadera", groupName: "Pierna" },
-  { name: "Aductores/Abductores", groupName: "Pierna" },
-  { name: "Zancada", groupName: "Pierna" },
-  { name: "Sentadilla sissy", groupName: "Pierna" },
-  { name: "Press frances", groupName: "Triceps" },
-  { name: "Press cerrado", groupName: "Triceps" },
-  { name: "Patada de mula", groupName: "Triceps" },
-  { name: "Extension polea", groupName: "Triceps" },
-  { name: "Copa", groupName: "Triceps" },
-  { name: "Fondos", groupName: "Triceps" },
-  { name: "Diamond push ups", groupName: "Triceps" },
-  { name: "Flexion barra", groupName: "Biceps" },
-  { name: "Curl mancuerna", groupName: "Biceps" },
-  { name: "Flexion Scott", groupName: "Biceps" },
-  { name: "Flexion polea", groupName: "Biceps" },
-  { name: "Flexion cuclillas", groupName: "Biceps" },
-  { name: "Curl martillo", groupName: "Biceps" },
-  { name: "Curl spider", groupName: "Biceps" },
-  { name: "Curl 21", groupName: "Biceps" },
-  { name: "Curl dragon", groupName: "Biceps" },
-  { name: "Press militar", groupName: "Hombros" },
-  { name: "Press militar cerrado", groupName: "Hombros" },
-  { name: "Elevacion lateral", groupName: "Hombros" },
-  { name: "Elevacion frontal", groupName: "Hombros" },
-  { name: "Elevacion posterior", groupName: "Hombros" },
-  { name: "Rowing", groupName: "Hombros" },
-  { name: "Face pull", groupName: "Hombros" },
-  { name: "Crunches", groupName: "Core" },
-  { name: "Lumbares", groupName: "Core" },
-  { name: "Oblicuos", groupName: "Core" },
-  { name: "Elevacion pierna", groupName: "Core" },
-  { name: "Flexion tronco cruzado", groupName: "Core" },
-  { name: "Tijeras", groupName: "Core" },
-  { name: "Plancha", groupName: "Core" },
-  { name: "Ab roller", groupName: "Core" },
-  { name: "Abs paquete", groupName: "Core" }
-] as const;
-
-const EXERCISE_GROUPS = EXERCISE_LIBRARY.reduce<Record<string, string[]>>((groups, exercise) => {
-  if (!groups[exercise.groupName]) {
-    groups[exercise.groupName] = [];
-  }
-
-  groups[exercise.groupName].push(exercise.name);
-  return groups;
-}, {});
 
 type DraftExercise = {
   id: string;
@@ -160,6 +91,16 @@ function getExerciseSelectValue(name: string) {
   return EXERCISE_LIBRARY.some((exercise) => exercise.name === name)
     ? name
     : CUSTOM_EXERCISE_VALUE;
+}
+
+function getVariantSelectValue(variant: string) {
+  if (!variant) {
+    return "";
+  }
+
+  return VARIANT_OPTIONS.includes(variant as (typeof VARIANT_OPTIONS)[number])
+    ? variant
+    : CUSTOM_VARIANT_VALUE;
 }
 
 function draftFromPlan(plan: RoutinePlan): DraftDay[] {
@@ -306,6 +247,46 @@ export function ManualRoutineBuilder({
             }
       )
     );
+  }
+
+  function updateExerciseVariant(dayId: string, blockId: string, exerciseId: string, value: string) {
+    setDays((current) =>
+      current.map((day) =>
+        day.id !== dayId
+          ? day
+          : {
+              ...day,
+              blocks: day.blocks.map((block) =>
+                block.id !== blockId
+                  ? block
+                  : {
+                      ...block,
+                      exercises: block.exercises.map((exercise) => {
+                        if (exercise.id !== exerciseId) {
+                          return exercise
+                        }
+
+                        if (value === CUSTOM_VARIANT_VALUE) {
+                          return {
+                            ...exercise,
+                            variant: VARIANT_OPTIONS.includes(
+                              exercise.variant as (typeof VARIANT_OPTIONS)[number]
+                            )
+                              ? ""
+                              : exercise.variant
+                          }
+                        }
+
+                        return {
+                          ...exercise,
+                          variant: value
+                        }
+                      })
+                    }
+              )
+            }
+      )
+    )
   }
 
   function addDay() {
@@ -539,13 +520,40 @@ export function ManualRoutineBuilder({
                           }
                           placeholder="Grupo muscular"
                         />
-                        <Input
-                          value={exercise.variant}
-                          onChange={(event) =>
-                            updateExercise(day.id, block.id, exercise.id, "variant", event.target.value)
-                          }
-                          placeholder="Variante / maquina"
-                        />
+                        <div className="grid gap-2">
+                          <label className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                            Variante / implemento
+                          </label>
+                          <select
+                            value={getVariantSelectValue(exercise.variant)}
+                            onChange={(event) =>
+                              updateExerciseVariant(day.id, block.id, exercise.id, event.target.value)
+                            }
+                            className="flex h-12 w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          >
+                            <option value="">Sin especificar</option>
+                            {VARIANT_OPTIONS.map((variant) => (
+                              <option key={variant} value={variant}>
+                                {variant}
+                              </option>
+                            ))}
+                            <option value={CUSTOM_VARIANT_VALUE}>Otro</option>
+                          </select>
+                        </div>
+                        {getVariantSelectValue(exercise.variant) === CUSTOM_VARIANT_VALUE ? (
+                          <div className="grid gap-2">
+                            <label className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                              Variante personalizada
+                            </label>
+                            <Input
+                              value={exercise.variant}
+                              onChange={(event) =>
+                                updateExercise(day.id, block.id, exercise.id, "variant", event.target.value)
+                              }
+                              placeholder="Ej. landmine / anillas / trap bar"
+                            />
+                          </div>
+                        ) : null}
                         <Input
                           value={exercise.plannedSets}
                           onChange={(event) =>

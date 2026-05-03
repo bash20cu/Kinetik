@@ -12,12 +12,15 @@ import { prisma } from "@/lib/prisma";
 import type {
   CsvExerciseRow,
   DashboardData,
+  FreeWorkoutTemplate,
   HomeDashboardData,
   InAppAlert,
+  ManagedUser,
   PlanImport,
   RoutinePlan,
   RoutinePlanSummary,
   SessionDetail,
+  WorkoutSuggestion,
   WeeklyCalendarDay,
   WorkoutSession
 } from "@/lib/types";
@@ -48,6 +51,30 @@ type ManualRoutineDayInput = {
   blocks: ManualRoutineBlockInput[];
 };
 
+type FreeWorkoutInput = {
+  name: string;
+  groupName: string;
+  variant?: string | null;
+  plannedSets?: number | null;
+  plannedReps?: string | null;
+  notes?: string | null;
+};
+
+const FREE_WORKOUT_PLAN_PREFIX = "__FREE_WORKOUT__::";
+const FREE_WORKOUT_PLAN_LABEL = "Entrenamiento libre";
+
+function buildFreeWorkoutPlanName(name: string) {
+  return `${FREE_WORKOUT_PLAN_PREFIX}${name.trim()}`;
+}
+
+function isFreeWorkoutPlanName(name: string) {
+  return name.startsWith(FREE_WORKOUT_PLAN_PREFIX);
+}
+
+function getFreeWorkoutDisplayName(name: string) {
+  return isFreeWorkoutPlanName(name) ? name.slice(FREE_WORKOUT_PLAN_PREFIX.length).trim() : name;
+}
+
 function mapAlert(alert: {
   id: string;
   type: AlertType;
@@ -77,6 +104,8 @@ function mapWorkoutSession(session: {
   day: { name: string };
   plan: { name: string };
 }): WorkoutSession {
+  const isFreeWorkout = isFreeWorkoutPlanName(session.plan.name);
+
   return {
     id: session.id,
     userId: session.userId,
@@ -86,7 +115,7 @@ function mapWorkoutSession(session: {
     status: session.status,
     generalNotes: session.generalNotes,
     dayName: session.day.name,
-    planName: session.plan.name
+    planName: isFreeWorkout ? FREE_WORKOUT_PLAN_LABEL : session.plan.name
   };
 }
 
@@ -297,6 +326,7 @@ export async function getRoutinePlans(userId: string): Promise<RoutinePlanSummar
 
   return plans
     .map(mapRoutinePlanSummary)
+    .filter((plan) => !isFreeWorkoutPlanName(plan.name))
     .sort((left, right) => {
       if (left.status !== right.status) {
         return left.status === RoutinePlanStatus.active ? -1 : 1;
@@ -310,6 +340,32 @@ export async function getLatestSession(userId: string): Promise<WorkoutSession |
   const session = await prisma.workoutSession.findFirst({
     where: {
       userId
+    },
+    orderBy: [{ sessionDate: "desc" }, { createdAt: "desc" }],
+    include: {
+      day: {
+        select: {
+          name: true
+        }
+      },
+      plan: {
+        select: {
+          name: true
+        }
+      }
+    }
+  });
+
+  return session ? mapWorkoutSession(session) : null;
+}
+
+export async function getOpenSession(userId: string): Promise<WorkoutSession | null> {
+  const session = await prisma.workoutSession.findFirst({
+    where: {
+      userId,
+      status: {
+        in: [WorkoutSessionStatus.planned, WorkoutSessionStatus.in_progress]
+      }
     },
     orderBy: [{ sessionDate: "desc" }, { createdAt: "desc" }],
     include: {
@@ -354,16 +410,113 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
 }
 
 export async function getHomeDashboardData(userId: string): Promise<HomeDashboardData> {
-  const [dashboard, week] = await Promise.all([
+  const [dashboard, week, openSession, suggestedWorkout, freeWorkoutTemplates] = await Promise.all([
     getDashboardData(userId),
-    getWeeklyCalendar(userId)
+    getWeeklyCalendar(userId),
+    getOpenSession(userId),
+    getSuggestedWorkout(userId),
+    getFreeWorkoutTemplates(userId)
   ]);
 
   return {
     ...dashboard,
     week,
-    todaysAssignment: week.find((day) => day.isToday) ?? null
+    todaysAssignment: week.find((day) => day.isToday) ?? null,
+    openSession,
+    suggestedWorkout,
+    freeWorkoutTemplates
   };
+}
+
+export async function getSuggestedWorkout(userId: string): Promise<WorkoutSuggestion | null> {
+  const activePlan = await getActivePlan(userId);
+
+  if (!activePlan || activePlan.days.length === 0) {
+    return null;
+  }
+
+  const latestPlanSession = await prisma.workoutSession.findFirst({
+    where: {
+      userId,
+      planId: activePlan.id
+    },
+    orderBy: [{ sessionDate: "desc" }, { createdAt: "desc" }]
+  });
+
+  const orderedDays = activePlan.days.slice().sort((left, right) => left.order - right.order);
+  let suggestedDay = orderedDays[0];
+
+  if (latestPlanSession) {
+    const currentIndex = orderedDays.findIndex((day) => day.id === latestPlanSession.dayId);
+
+    if (currentIndex >= 0) {
+      suggestedDay = orderedDays[(currentIndex + 1) % orderedDays.length];
+    }
+  }
+
+  return {
+    dayId: suggestedDay.id,
+    dayName: suggestedDay.name,
+    planName: activePlan.name
+  };
+}
+
+export async function getFreeWorkoutTemplates(userId: string): Promise<FreeWorkoutTemplate[]> {
+  const plans = await prisma.routinePlan.findMany({
+    where: {
+      userId,
+      name: {
+        startsWith: FREE_WORKOUT_PLAN_PREFIX
+      }
+    },
+    orderBy: [{ createdAt: "desc" }],
+    include: {
+      days: {
+        include: {
+          blocks: {
+            include: {
+              _count: {
+                select: {
+                  exercises: true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+
+  const templates = new Map<string, FreeWorkoutTemplate>();
+
+  for (const plan of plans) {
+    const displayName = getFreeWorkoutDisplayName(plan.name);
+
+    if (templates.has(displayName)) {
+      continue;
+    }
+
+    const firstDay = plan.days.slice().sort((left, right) => left.dayOrder - right.dayOrder)[0];
+
+    if (!firstDay) {
+      continue;
+    }
+
+    const exerciseCount = firstDay.blocks.reduce(
+      (count, block) => count + block._count.exercises,
+      0
+    );
+
+    templates.set(displayName, {
+      planId: plan.id,
+      dayId: firstDay.id,
+      name: displayName,
+      exerciseCount,
+      createdAt: plan.createdAt.toISOString()
+    });
+  }
+
+  return Array.from(templates.values()).slice(0, 4);
 }
 
 export async function getSessions(userId: string) {
@@ -496,7 +649,9 @@ export async function getSessionDetail(userId: string, sessionId: string): Promi
     status: session.status,
     generalNotes: session.generalNotes,
     dayName: session.day.name,
-    planName: session.plan.name,
+    planName: isFreeWorkoutPlanName(session.plan.name)
+      ? FREE_WORKOUT_PLAN_LABEL
+      : session.plan.name,
     blocks: session.day.blocks
       .slice()
       .sort((left, right) => left.blockOrder - right.blockOrder)
@@ -602,6 +757,145 @@ export async function createSession(userId: string, dayId: string) {
   return session.id;
 }
 
+export async function startSuggestedWorkout(userId: string) {
+  const openSession = await getOpenSession(userId);
+
+  if (openSession) {
+    return openSession.id;
+  }
+
+  const suggestion = await getSuggestedWorkout(userId);
+
+  if (!suggestion) {
+    throw new Error("No encontramos una rutina activa para sugerirte un entrenamiento.");
+  }
+
+  return createSession(userId, suggestion.dayId);
+}
+
+export async function createFreeWorkoutSession(
+  userId: string,
+  workoutName: string,
+  exercises: FreeWorkoutInput[]
+) {
+  const normalizedName = workoutName.trim() || `Entrenamiento libre ${toDateString(today())}`;
+  const normalizedExercises = exercises
+    .filter((exercise) => exercise.name.trim())
+    .map((exercise) => ({
+      name: exercise.name.trim(),
+      groupName: exercise.groupName?.trim() || "Libre",
+      variant: exercise.variant?.trim() || null,
+      plannedSets:
+        typeof exercise.plannedSets === "number" && exercise.plannedSets > 0
+          ? exercise.plannedSets
+          : null,
+      plannedReps: exercise.plannedReps?.trim() || null,
+      notes: exercise.notes?.trim() || null
+    }));
+
+  if (normalizedExercises.length === 0) {
+    throw new Error("Debes agregar al menos un ejercicio para arrancar el entrenamiento libre.");
+  }
+
+  const sessionId = await prisma.$transaction(async (tx) => {
+    const plan = await tx.routinePlan.create({
+      data: {
+        userId,
+        name: buildFreeWorkoutPlanName(normalizedName),
+        activeFrom: today(),
+        status: RoutinePlanStatus.archived,
+        days: {
+          create: {
+            name: normalizedName,
+            dayOrder: 1,
+            blocks: {
+              create: {
+                name: "Bloque libre",
+                blockOrder: 1,
+                exercises: {
+                  create: normalizedExercises
+                }
+              }
+            }
+          }
+        }
+      },
+      include: {
+        days: true
+      }
+    });
+
+    const dayId = plan.days[0]?.id;
+
+    if (!dayId) {
+      throw new Error("No pudimos preparar el entrenamiento libre.");
+    }
+
+    const session = await tx.workoutSession.create({
+      data: {
+        userId,
+        planId: plan.id,
+        dayId,
+        sessionDate: today(),
+        status: WorkoutSessionStatus.planned
+      }
+    });
+
+    return session.id;
+  });
+
+  await createAlert({
+    userId,
+    type: "info",
+    title: "Entrenamiento libre listo",
+    body: `Guardamos "${normalizedName}" para repetirlo y ya puedes empezar la sesion.`
+  });
+
+  return sessionId;
+}
+
+export async function repeatFreeWorkoutTemplate(userId: string, templateDayId: string) {
+  const templateDay = await prisma.routineDay.findFirst({
+    where: {
+      id: templateDayId,
+      plan: {
+        userId,
+        name: {
+          startsWith: FREE_WORKOUT_PLAN_PREFIX
+        }
+      }
+    },
+    include: {
+      plan: true,
+      blocks: {
+        include: {
+          exercises: true
+        }
+      }
+    }
+  });
+
+  if (!templateDay) {
+    throw new Error("No encontramos la plantilla libre que quieres repetir.");
+  }
+
+  const exercises = templateDay.blocks
+    .slice()
+    .sort((left, right) => left.blockOrder - right.blockOrder)
+    .flatMap((block) =>
+      block.exercises.map((exercise) => ({
+        name: exercise.name,
+        groupName: exercise.groupName,
+        variant: exercise.variant,
+        plannedSets: exercise.plannedSets,
+        plannedReps: exercise.plannedReps,
+        notes: exercise.notes
+      }))
+    );
+
+  return createFreeWorkoutSession(userId, getFreeWorkoutDisplayName(templateDay.plan.name), exercises);
+}
+
 export async function saveSession(userId: string, sessionId: string, formData: FormData) {
   const detail = await getSessionDetail(userId, sessionId);
 
@@ -695,6 +989,30 @@ export async function getPlanImports(userId: string) {
       createdAt: item.createdAt.toISOString()
     })
   );
+}
+
+export async function getManagedUsers(): Promise<ManagedUser[]> {
+  const users = await prisma.user.findMany({
+    orderBy: {
+      createdAt: "asc"
+    },
+    include: {
+      _count: {
+        select: {
+          sessions: true,
+          routinePlans: true
+        }
+      }
+    }
+  });
+
+  return users.map((user) => ({
+    id: user.id,
+    email: user.email,
+    createdAt: user.createdAt.toISOString(),
+    sessionCount: user._count.sessions,
+    planCount: user._count.routinePlans
+  }));
 }
 
 function groupCsvRows(rows: CsvExerciseRow[]) {

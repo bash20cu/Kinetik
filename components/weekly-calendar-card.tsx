@@ -4,19 +4,12 @@ import { createSessionAction } from "@/app/actions"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { getCalendarStatusBadgeVariant } from "@/lib/status-ui"
 import type { WeeklyCalendarDay } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 type WeeklyCalendarCardProps = {
   week: WeeklyCalendarDay[]
-}
-
-function statusVariant(status: WeeklyCalendarDay["status"]) {
-  if (status === "completed") return "success"
-  if (status === "in_progress") return "warning"
-  if (status === "today") return "info"
-  if (status === "planned") return "outline"
-  return "secondary"
 }
 
 export function WeeklyCalendarCard({ week }: WeeklyCalendarCardProps) {
@@ -42,7 +35,7 @@ export function WeeklyCalendarCard({ week }: WeeklyCalendarCardProps) {
                 </p>
                 <p className="mt-2 font-display text-4xl leading-none">{day.dateLabel}</p>
               </div>
-              <Badge variant={statusVariant(day.status)}>
+              <Badge variant={getCalendarStatusBadgeVariant(day.status)}>
                 {day.status === "recovery" ? "Recovery" : day.status}
               </Badge>
             </div>

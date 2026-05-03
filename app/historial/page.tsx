@@ -10,12 +10,7 @@ import { cn } from "@/lib/utils"
 import { requireUser } from "@/lib/auth"
 import { getSessions, getUnreadAlerts } from "@/lib/data"
 import { isDatabaseConfigured } from "@/lib/env"
-
-function statusVariant(status: string) {
-  if (status === "completed") return "success"
-  if (status === "in_progress") return "warning"
-  return "outline"
-}
+import { getWorkoutSessionBadgeVariant } from "@/lib/status-ui"
 
 export default async function HistoryPage() {
   if (!isDatabaseConfigured()) {
@@ -66,7 +61,7 @@ export default async function HistoryPage() {
                     <TableCell className="font-medium">{session.dayName}</TableCell>
                     <TableCell>{session.planName}</TableCell>
                     <TableCell>
-                      <Badge variant={statusVariant(session.status)}>{session.status}</Badge>
+                      <Badge variant={getWorkoutSessionBadgeVariant(session.status)}>{session.status}</Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <Link

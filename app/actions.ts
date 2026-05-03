@@ -3,18 +3,29 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
-import { AuthenticationError, requireUser, signInWithPassword, signOut } from "@/lib/auth";
+import {
+  AuthenticationError,
+  deleteProvisionedUser,
+  provisionUser,
+  requireUser,
+  signInWithPassword,
+  signOut,
+  updateProvisionedUser
+} from "@/lib/auth";
 import {
   activateRoutinePlan,
   archiveRoutinePlan,
+  createFreeWorkoutSession,
   createSession,
   createManualPlan,
   importPlanFromCsv,
   markAlertAsRead,
+  repeatFreeWorkoutTemplate,
   saveSession,
+  startSuggestedWorkout,
   updateRoutinePlan
 } from "@/lib/data";
-import { parsePlanPayload, requireId } from "@/lib/validation";
+import { parsePlanPayload, parseQuickWorkoutPayload, requireId, requirePassword } from "@/lib/validation";
 
 export type LoginFormState = {
   error: string | null;
@@ -55,6 +66,46 @@ export async function createSessionAction(formData: FormData) {
   const sessionId = await createSession(user.id, dayId);
   revalidatePath("/");
   revalidatePath("/historial");
+  redirect(`/sesion/${sessionId}`);
+}
+
+export async function startSuggestedWorkoutAction() {
+  const user = await requireUser();
+  const sessionId = await startSuggestedWorkout(user.id);
+  revalidatePath("/");
+  revalidatePath("/historial");
+  redirect(`/sesion/${sessionId}`);
+}
+
+export async function createFreeWorkoutSessionAction(formData: FormData) {
+  const user = await requireUser();
+  const payload = String(formData.get("payload") ?? "");
+
+  if (!payload) {
+    throw new Error("Debes agregar al menos un ejercicio para crear el entrenamiento libre.");
+  }
+
+  const quickWorkout = parseQuickWorkoutPayload(payload);
+  const sessionId = await createFreeWorkoutSession(user.id, quickWorkout.name, quickWorkout.exercises);
+
+  revalidatePath("/");
+  revalidatePath("/historial");
+  revalidatePath("/rutina");
+  redirect(`/sesion/${sessionId}`);
+}
+
+export async function repeatFreeWorkoutTemplateAction(formData: FormData) {
+  const user = await requireUser();
+  const templateDayId = requireId(
+    formData.get("templateDayId"),
+    "No encontramos la plantilla libre que quieres repetir."
+  );
+
+  const sessionId = await repeatFreeWorkoutTemplate(user.id, templateDayId);
+
+  revalidatePath("/");
+  revalidatePath("/historial");
+  revalidatePath("/rutina");
   redirect(`/sesion/${sessionId}`);
 }
 
@@ -146,4 +197,39 @@ export async function activateRoutinePlanAction(formData: FormData) {
   await activateRoutinePlan(user.id, planId);
   revalidatePath("/");
   revalidatePath("/rutina");
+}
+
+export async function createManagedUserAction(formData: FormData) {
+  await requireUser();
+  const email = String(formData.get("email") ?? "");
+  const password = requirePassword(String(formData.get("password") ?? ""));
+
+  await provisionUser(email, password);
+  revalidatePath("/admin/usuarios");
+}
+
+export async function updateManagedUserAction(formData: FormData) {
+  await requireUser();
+  const userId = requireId(formData.get("userId"), "No encontramos el usuario que quieres editar.");
+  const email = String(formData.get("email") ?? "");
+  const password = String(formData.get("password") ?? "");
+
+  await updateProvisionedUser(userId, {
+    email,
+    password
+  });
+
+  revalidatePath("/admin/usuarios");
+}
+
+export async function deleteManagedUserAction(formData: FormData) {
+  const currentUser = await requireUser();
+  const userId = requireId(formData.get("userId"), "No encontramos el usuario que quieres borrar.");
+
+  if (userId === currentUser.id) {
+    throw new Error("No puedes borrar tu propia cuenta mientras estas usando la app.");
+  }
+
+  await deleteProvisionedUser(userId);
+  revalidatePath("/admin/usuarios");
 }

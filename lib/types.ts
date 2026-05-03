@@ -4,6 +4,14 @@ export type User = {
   createdAt: string;
 };
 
+export type ManagedUser = {
+  id: string;
+  email: string;
+  createdAt: string;
+  sessionCount: number;
+  planCount: number;
+};
+
 export type InAppAlert = {
   id: string;
   type: "info" | "warning" | "success" | "error";
@@ -70,6 +78,20 @@ export type WorkoutSession = {
   planName: string;
 };
 
+export type WorkoutSuggestion = {
+  dayId: string;
+  dayName: string;
+  planName: string;
+};
+
+export type FreeWorkoutTemplate = {
+  planId: string;
+  dayId: string;
+  name: string;
+  exerciseCount: number;
+  createdAt: string;
+};
+
 export type ExerciseLog = {
   id: string;
   sessionId: string;
@@ -124,6 +146,9 @@ export type WeeklyCalendarDay = {
 export type HomeDashboardData = DashboardData & {
   week: WeeklyCalendarDay[];
   todaysAssignment: WeeklyCalendarDay | null;
+  openSession: WorkoutSession | null;
+  suggestedWorkout: WorkoutSuggestion | null;
+  freeWorkoutTemplates: FreeWorkoutTemplate[];
 };
 
 export type CsvExerciseRow = {

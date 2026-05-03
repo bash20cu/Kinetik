@@ -19,6 +19,18 @@ type PlanPayload = {
   }>;
 };
 
+type QuickWorkoutPayload = {
+  name?: string;
+  exercises?: Array<{
+    name?: string;
+    groupName?: string;
+    variant?: string | null;
+    plannedSets?: number | null;
+    plannedReps?: string | null;
+    notes?: string | null;
+  }>;
+};
+
 const SESSION_STATUSES = new Set<WorkoutSessionStatus>(Object.values(WorkoutSessionStatus));
 const EXERCISE_STATUSES = new Set<ExerciseLogStatus>(Object.values(ExerciseLogStatus));
 
@@ -121,4 +133,26 @@ export function parsePlanPayload(payload: string) {
       }))
     }))
   }));
+}
+
+export function parseQuickWorkoutPayload(payload: string) {
+  let parsed: QuickWorkoutPayload;
+
+  try {
+    parsed = JSON.parse(payload) as QuickWorkoutPayload;
+  } catch {
+    throw new Error("No pudimos interpretar el entrenamiento libre enviado.");
+  }
+
+  return {
+    name: parsed.name?.trim() || "",
+    exercises: (parsed.exercises ?? []).map((exercise) => ({
+      name: exercise.name ?? "",
+      groupName: exercise.groupName ?? "",
+      variant: exercise.variant ?? null,
+      plannedSets: exercise.plannedSets ?? null,
+      plannedReps: exercise.plannedReps ?? null,
+      notes: exercise.notes ?? null
+    }))
+  };
 }

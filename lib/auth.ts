@@ -111,6 +111,29 @@ export async function provisionUser(email: string, password: string) {
   });
 }
 
+export async function updateProvisionedUser(userId: string, input: { email: string; password?: string | null }) {
+  const normalizedEmail = requireEmail(input.email);
+  const nextPassword = input.password?.trim();
+
+  return prisma.user.update({
+    where: {
+      id: userId
+    },
+    data: {
+      email: normalizedEmail,
+      ...(nextPassword ? { passwordHash: hashPassword(nextPassword) } : {})
+    }
+  });
+}
+
+export async function deleteProvisionedUser(userId: string) {
+  return prisma.user.delete({
+    where: {
+      id: userId
+    }
+  });
+}
+
 export async function signOut() {
   const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;

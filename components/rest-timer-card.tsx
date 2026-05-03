@@ -1,10 +1,10 @@
 "use client"
 
-import { Pause, Play, RotateCcw, TimerReset } from "lucide-react"
+import { Pause, Play, SkipForward, TimerReset } from "lucide-react"
 import { useMemo } from "react"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 
 const PRESETS = [30, 60, 90, 120]
@@ -19,49 +19,61 @@ type RestTimerCardProps = {
   duration: number
   remaining: number
   running: boolean
-  visible?: boolean
+  nextLabel: string | null
+  notificationPermission: NotificationPermission | "unsupported"
   onToggle: () => void
   onReset: () => void
   onPreset: (seconds: number) => void
+  onSkip: () => void
 }
 
 export function RestTimerCard({
   duration,
   remaining,
   running,
-  visible = true,
+  nextLabel,
+  notificationPermission,
   onToggle,
   onReset,
-  onPreset
+  onPreset,
+  onSkip
 }: RestTimerCardProps) {
-
   const progress = useMemo(() => {
     if (duration <= 0) return 0
     return Math.max(0, Math.min(100, ((duration - remaining) / duration) * 100))
   }, [duration, remaining])
 
   return (
-    <Card className={cn("glass-card overflow-hidden transition-all", !visible && "opacity-60")}>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="eyebrow">Rest timer</p>
-            <CardTitle className="text-3xl">Descanso</CardTitle>
-          </div>
-          <TimerReset className="size-5 text-primary" />
+    <div className="flex h-full flex-col overflow-hidden rounded-[1.65rem] border border-border/70 bg-card/96 p-3.5 shadow-[0_28px_80px_-48px_rgba(15,23,42,0.9)] backdrop-blur md:rounded-[2rem] md:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-2 md:gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">Descanso</p>
+          <h3 className="text-[1.8rem] uppercase leading-none md:text-5xl">Recupera</h3>
+          <p className="mt-2 max-h-8 max-w-xl overflow-hidden text-xs text-muted-foreground md:mt-3 md:max-h-none md:text-sm">
+            {nextLabel
+              ? `Cuando termine el reloj, te llevo a ${nextLabel}.`
+              : "Cuando termine el reloj, cerramos la rutina y celebramos el avance."}
+          </p>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="rounded-[1.5rem] border border-border/70 bg-background/70 p-5">
-          <p className="font-display text-6xl leading-none tracking-wide">{formatTime(remaining)}</p>
-          <div className="mt-4 h-3 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-primary transition-[width]"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        </div>
+        <Badge variant={running ? "warning" : "outline"}>
+          {running ? "corriendo" : "en pausa"}
+        </Badge>
+      </div>
 
+      <div className="mt-4 rounded-[1.25rem] border border-primary/15 bg-primary/5 p-4 md:mt-6 md:rounded-[1.75rem] md:p-5">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground md:text-xs">
+          Tiempo restante
+        </p>
+        <p className="mt-2 text-[4.5rem] font-semibold leading-none tracking-tight md:mt-3 md:text-7xl">{formatTime(remaining)}</p>
+        <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-muted md:mt-5 md:h-3">
+          <div
+            className="h-full rounded-full bg-primary transition-[width]"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:mt-5 lg:grid-cols-[minmax(0,1fr)_260px]">
         <div className="grid grid-cols-4 gap-2">
           {PRESETS.map((seconds) => (
             <Button
@@ -69,37 +81,41 @@ export function RestTimerCard({
               type="button"
               variant={duration === seconds ? "default" : "outline"}
               onClick={() => onPreset(seconds)}
-              className="rounded-2xl"
+              className="h-10 rounded-[0.95rem] px-2 text-sm md:rounded-2xl"
             >
               {seconds}s
             </Button>
           ))}
         </div>
 
-        <div className="grid grid-cols-3 gap-2">
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={onToggle}
-            className="rounded-2xl"
-          >
-            {running ? <Pause className="size-4" /> : <Play className="size-4" />}
-            {running ? "Pausar" : "Iniciar"}
-          </Button>
-          <Button type="button" variant="outline" onClick={onReset} className="rounded-2xl">
-            <RotateCcw className="size-4" />
-            Reset
-          </Button>
-          <div
-            className={cn(
-              "flex items-center justify-center rounded-2xl border border-border/70 px-3 text-sm font-medium",
-              running ? "bg-primary/10 text-primary" : "bg-muted/30 text-muted-foreground"
-            )}
-          >
-            {running ? "Corriendo" : "En espera"}
-          </div>
+        <div
+          className={cn(
+            "rounded-[1rem] border px-3 py-2 text-xs md:rounded-[1.35rem] md:px-4 md:py-3 md:text-sm",
+            notificationPermission === "granted"
+              ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+              : "border-border/70 bg-background/70 text-muted-foreground"
+          )}
+        >
+          {notificationPermission === "granted"
+            ? "Notificaciones activas para avisarte cuando termine el descanso."
+            : "Si el navegador lo permite, la app avisara cuando termine el descanso."}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+
+      <div className="mt-auto grid gap-2 pt-4 sm:grid-cols-3 md:mt-5 md:pt-0">
+        <Button type="button" variant="secondary" onClick={onToggle} className="min-h-10 rounded-[1rem] md:min-h-12 md:rounded-2xl">
+          {running ? <Pause className="size-4" /> : <Play className="size-4" />}
+          {running ? "Pausar" : "Reanudar"}
+        </Button>
+        <Button type="button" variant="outline" onClick={onReset} className="min-h-10 rounded-[1rem] md:min-h-12 md:rounded-2xl">
+          <TimerReset className="size-4" />
+          Reiniciar
+        </Button>
+        <Button type="button" variant="ghost" onClick={onSkip} className="min-h-10 rounded-[1rem] md:min-h-12 md:rounded-2xl">
+          <SkipForward className="size-4" />
+          Seguir ya
+        </Button>
+      </div>
+    </div>
   )
 }

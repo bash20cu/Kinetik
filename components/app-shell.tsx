@@ -40,17 +40,17 @@ export function AppShell({ user, alerts = [], children }: AppShellProps) {
 
       <header className="topbar-shell">
         <div className="topbar-grid">
-          <div className="flex min-w-0 items-center justify-between gap-4 md:block">
-            <div className="flex min-w-0 items-center gap-4">
-            <div className="flex size-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
-              <Dumbbell className="size-5" />
+          <div className="flex min-w-0 items-center justify-between gap-3 md:block">
+            <div className="flex min-w-0 items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+              <Dumbbell className="size-4" />
             </div>
             <div className="min-w-0">
-              <p className="eyebrow mb-1">Kinetik</p>
-              <h1 className="truncate text-2xl uppercase leading-none tracking-wide">
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-primary">Kinetik</p>
+              <h1 className="truncate text-xl uppercase leading-none tracking-wide md:text-2xl">
                 Gym Plan Control
               </h1>
-              <p className="text-sm text-muted-foreground">
+              <p className="hidden text-xs text-muted-foreground md:block">
                 Rutina, cargas e historial con tema claro y oscuro.
               </p>
             </div>
@@ -59,20 +59,21 @@ export function AppShell({ user, alerts = [], children }: AppShellProps) {
           </div>
 
           <nav
-            className="hidden flex-wrap items-center gap-2 rounded-2xl border border-border/70 bg-card/75 p-1 md:flex"
+            className="hidden flex-wrap items-center gap-1 rounded-2xl border border-border/70 bg-card/75 p-1 md:flex"
             aria-label="Navegacion principal"
           >
             <NavLink href="/" label="Hoy" />
+            <NavLink href="/entrenar/libre" label="Libre" />
             <NavLink href="/rutina" label="Rutina" />
             <NavLink href="/historial" label="Historial" />
             <NavLink href="/plan/importar" label="Importar plan" />
           </nav>
 
-          <div className="hidden flex-col gap-3 lg:min-w-[340px] lg:items-end md:flex">
+          <div className="hidden flex-col gap-2 lg:min-w-[340px] lg:items-end md:flex">
             <div className="flex flex-wrap items-center justify-end gap-2">
               <ModeToggle />
               <details className="group relative">
-                <summary className="flex list-none cursor-pointer items-center gap-2 rounded-full border border-border/70 bg-card/80 px-3 py-2 text-sm font-medium shadow-sm">
+                <summary className="flex list-none cursor-pointer items-center gap-2 rounded-full border border-border/70 bg-card/80 px-3 py-1.5 text-sm font-medium shadow-sm">
                   <Bell className="size-4" />
                   <span>Alertas</span>
                   <Badge variant={unreadCount > 0 ? "info" : "outline"}>{unreadCount}</Badge>
@@ -123,7 +124,7 @@ export function AppShell({ user, alerts = [], children }: AppShellProps) {
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <div className="rounded-2xl border border-border/70 bg-card/75 px-4 py-2 text-right">
+              <div className="rounded-2xl border border-border/70 bg-card/75 px-3 py-1.5 text-right">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   Cuenta activa
                 </p>

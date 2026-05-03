@@ -1,13 +1,11 @@
 "use client"
 
-import { Check, ChevronRight, Dumbbell, Lock, Repeat2 } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { Check, Clock3, Flag } from "lucide-react"
 
-import { RepsField } from "@/components/reps-field"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
+import { getExerciseStatusBadgeVariant } from "@/lib/status-ui"
+import { cn } from "@/lib/utils"
 
 type ExerciseActionCardProps = {
   blockName: string
@@ -19,204 +17,101 @@ type ExerciseActionCardProps = {
     plannedSets: number | null
     plannedReps: string | null
     notes: string | null
-    log: {
-      setsCompleted: number | null
-      reps: string | null
-      weight: string | null
-      status: "pending" | "in_progress" | "completed" | "skipped"
-      note: string | null
-    } | null
   }
-  flowState: "completed" | "current" | "locked"
-  onSeriesDone: (payload: { completedExercise: boolean }) => void
+  status: "pending" | "in_progress" | "completed" | "skipped"
+  setsCompleted: number
+  setElapsedSeconds: number
+  onSeriesDone: () => void
   onCompleteExercise: () => void
+  className?: string
 }
 
 export function ExerciseActionCard({
   blockName,
   orderLabel,
   exercise,
-  flowState,
+  status,
+  setsCompleted,
+  setElapsedSeconds,
   onSeriesDone,
-  onCompleteExercise
+  onCompleteExercise,
+  className
 }: ExerciseActionCardProps) {
-  const [status, setStatus] = useState(exercise.log?.status ?? "pending")
-  const [setsCompleted, setSetsCompleted] = useState(exercise.log?.setsCompleted ?? 0)
   const targetSets = exercise.plannedSets ?? 0
+  const setsLeft = targetSets > 0 ? Math.max(targetSets - setsCompleted, 0) : null
 
-  useEffect(() => {
-    if (flowState === "completed" && status !== "completed") {
-      setStatus("completed")
-    }
-  }, [flowState, status])
-
-  const completionTone = useMemo(() => {
-    if (status === "completed") return "success"
-    if (status === "in_progress") return "warning"
-    if (status === "skipped") return "error"
-    return "outline"
-  }, [status])
-
-  function handleSeriesDone() {
-    const nextSets = setsCompleted + 1
-    const completedExercise = targetSets > 0 && nextSets >= targetSets
-    setSetsCompleted(nextSets)
-    setStatus(completedExercise ? "completed" : "in_progress")
-    onSeriesDone({ completedExercise })
+  function formatTimer(totalSeconds: number) {
+    const minutes = Math.floor(totalSeconds / 60)
+    const seconds = totalSeconds % 60
+    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
   }
-
-  const locked = flowState === "locked"
-  const compact = flowState === "completed"
 
   return (
     <div
-      className={`rounded-[1.7rem] border border-border/70 p-4 transition-all ${
-        locked ? "bg-muted/20 opacity-65" : compact ? "bg-card/70" : "bg-background/60"
-      }`}
+      className={cn(
+        "flex h-full flex-col overflow-hidden rounded-[1.65rem] border border-border/70 bg-card/95 p-3.5 shadow-[0_26px_80px_-48px_rgba(15,23,42,0.6)] backdrop-blur md:rounded-[2rem] md:p-5",
+        className
+      )}
     >
-      <input type="hidden" name={`sets-${exercise.id}`} value={setsCompleted} />
-
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
+          <Badge variant="outline">{orderLabel}</Badge>
+          <Badge variant="secondary">{blockName}</Badge>
+          <Badge variant={getExerciseStatusBadgeVariant(status)}>{status.replace("_", " ")}</Badge>
+        </div>
         <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">{orderLabel}</Badge>
-            <Badge variant="secondary">{blockName}</Badge>
-            <h3 className="text-xl uppercase">{exercise.name}</h3>
-            <Badge variant={completionTone}>{status}</Badge>
-            {locked ? <Lock className="size-4 text-muted-foreground" /> : null}
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <h3 className="text-[1.45rem] uppercase leading-none md:text-[2rem]">{exercise.name}</h3>
+          <div className="mt-2 flex flex-wrap gap-1.5 md:gap-2">
             {exercise.variant ? <Badge variant="secondary">{exercise.variant}</Badge> : null}
             {exercise.plannedSets ? <Badge variant="info">{exercise.plannedSets} sets</Badge> : null}
             {exercise.plannedReps ? <Badge variant="warning">{exercise.plannedReps} reps</Badge> : null}
           </div>
-          {exercise.notes ? (
-            <p className="mt-3 max-w-2xl text-sm text-muted-foreground">{exercise.notes}</p>
-          ) : null}
+        </div>
+      </div>
+
+      <div className="mt-auto space-y-3 pt-5 md:space-y-4 md:pt-6">
+        <div className="overflow-hidden rounded-[1.15rem] border border-border/70 bg-background/70 md:rounded-[1.35rem]">
+          <div className="grid grid-cols-2 divide-x divide-border/70">
+            <div className="px-3 py-2.5 md:px-3.5 md:py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Sets</p>
+              <p className="mt-1 text-[1.55rem] font-semibold leading-none md:text-[1.85rem]">
+                {setsCompleted}
+                <span className="text-base text-muted-foreground">/{exercise.plannedSets ?? "-"}</span>
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {setsLeft === null ? "Libre" : `${setsLeft} restantes`}
+              </p>
+            </div>
+
+            <div className="px-3 py-2.5 md:px-3.5 md:py-3">
+              <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                <Clock3 className="size-3.5" />
+                Tiempo
+              </div>
+              <p className="mt-1 text-[1.55rem] font-semibold leading-none md:text-[1.85rem]">{formatTimer(setElapsedSeconds)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {status === "completed" ? "Cerrado" : "Corriendo"}
+              </p>
+            </div>
+          </div>
         </div>
 
-        {!locked ? (
-        <div className="grid gap-2 sm:grid-cols-2 lg:w-[300px]">
-          <Button type="button" className="rounded-2xl" onClick={handleSeriesDone}>
-            <Check className="size-4" />
+        <div className="grid gap-2.5 sm:grid-cols-[minmax(0,1fr)_220px] md:gap-3">
+          <Button type="button" size="lg" className="min-h-11 rounded-[1.15rem] text-base md:min-h-12 md:rounded-[1.35rem]" onClick={onSeriesDone}>
+            <Check className="size-5" />
             Serie hecha
           </Button>
           <Button
             type="button"
             variant="outline"
-            className="rounded-2xl"
-            onClick={() => {
-              setStatus("completed")
-              onCompleteExercise()
-            }}
+            className="min-h-11 rounded-[1.15rem] text-base md:min-h-12 md:rounded-[1.35rem]"
+            onClick={onCompleteExercise}
           >
-            <ChevronRight className="size-4" />
-            Completar
+            <Flag className="size-5" />
+            Completar ejercicio
           </Button>
         </div>
-        ) : (
-          <div className="rounded-2xl border border-dashed border-border/70 px-4 py-3 text-sm text-muted-foreground">
-            Se desbloquea cuando termines la tarjeta actual.
-          </div>
-        )}
       </div>
-
-      {!compact ? (
-      <div className="mt-5 grid gap-4 xl:grid-cols-[180px_minmax(0,1fr)_220px]">
-        <div className="space-y-3">
-          <div className="rounded-[1.35rem] border border-border/70 bg-card p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Sets
-            </p>
-            <p className="mt-2 font-display text-5xl leading-none">{setsCompleted}</p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Objetivo: {exercise.plannedSets ?? "Libre"}
-            </p>
-          </div>
-
-          <div className="grid gap-2">
-            <label htmlFor={`status-${exercise.id}`} className="text-sm font-semibold">
-              Estado
-            </label>
-            <select
-              id={`status-${exercise.id}`}
-              name={`status-${exercise.id}`}
-              value={status}
-              onChange={(event) => setStatus(event.target.value as typeof status)}
-              className="status-select"
-              disabled={locked}
-            >
-              <option value="pending">Pending</option>
-              <option value="in_progress">In progress</option>
-              <option value="completed">Completed</option>
-              <option value="skipped">Skipped</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <div className="grid gap-2">
-            <label className="text-sm font-semibold" htmlFor={`reps-${exercise.id}`}>
-              Contador de repeticiones
-            </label>
-            <RepsField
-              exerciseId={exercise.id}
-              defaultValue={exercise.log?.reps ?? ""}
-              plannedValue={exercise.plannedReps}
-              disabled={locked}
-            />
-          </div>
-
-          <div className="grid gap-2">
-            <label htmlFor={`note-${exercise.id}`} className="text-sm font-semibold">
-              Nota rapida
-            </label>
-            <Textarea
-              id={`note-${exercise.id}`}
-              name={`note-${exercise.id}`}
-              defaultValue={exercise.log?.note ?? ""}
-              placeholder="Tecnica, sensaciones, ajuste de carga..."
-              disabled={locked}
-            />
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <div className="grid gap-2">
-            <label htmlFor={`weight-${exercise.id}`} className="text-sm font-semibold">
-              Peso
-            </label>
-            <div className="relative">
-              <Dumbbell className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id={`weight-${exercise.id}`}
-                name={`weight-${exercise.id}`}
-                defaultValue={exercise.log?.weight ?? ""}
-                placeholder="20 kg / 2 discos"
-                className="pl-9"
-                disabled={locked}
-              />
-            </div>
-          </div>
-
-          <div className="rounded-[1.35rem] border border-border/70 bg-card p-4">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <Repeat2 className="size-4 text-primary" />
-              Accion rapida
-            </div>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Marca una serie y el descanso arranca automaticamente con 90 segundos.
-            </p>
-          </div>
-        </div>
-      </div>
-      ) : (
-        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-[1.35rem] border border-border/70 bg-background/50 px-4 py-3 text-sm text-muted-foreground">
-          <span>Sets: {setsCompleted}</span>
-          <span>Reps: {exercise.log?.reps ?? exercise.plannedReps ?? "--"}</span>
-          <span>Peso: {exercise.log?.weight ?? "--"}</span>
-        </div>
-      )}
     </div>
   )
 }
