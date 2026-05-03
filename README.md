@@ -42,7 +42,7 @@ Cuando quieras volver a Neon, solo cambia `DATABASE_URL` en `.env.local`.
 
 ```bash
 npm install
-npm run prisma:generate
+npx prisma migrate deploy
 npm run dev
 ```
 
@@ -55,8 +55,19 @@ Comandos utiles:
 ```bash
 npm run prisma:generate
 npm run prisma:migrate -- --name init
+npx prisma migrate deploy
 npm run prisma:studio
 ```
+
+## Deploy
+
+En deploy:
+
+- `postinstall` ejecuta `prisma generate`
+- `prebuild` ejecuta `prisma migrate deploy`
+- `build` ejecuta `next build`
+
+Esto asegura que el cliente Prisma exista y que la base tenga las migraciones aplicadas antes de compilar la app.
 
 ## CSV de rutina
 

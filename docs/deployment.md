@@ -21,7 +21,9 @@ APP_URL=https://tu-dominio.vercel.app
 
 ## 3. Comportamiento de la app
 
-- Las tablas se crean automaticamente cuando la app hace su primera consulta.
+- Durante el deploy, `postinstall` ejecuta `prisma generate`.
+- Antes del build, `prebuild` ejecuta `prisma migrate deploy`.
+- La base debe estar accesible desde Vercel para que las migraciones puedan correr.
 - El login usa email + cookie de sesion.
 - La plantilla CSV se descarga desde `/api/plan/template`.
 
@@ -29,6 +31,7 @@ APP_URL=https://tu-dominio.vercel.app
 
 - Confirmar que Neon permite conexiones desde Vercel.
 - Definir un `SESSION_SECRET` largo y privado.
+- Verificar que `DATABASE_URL` apunta a la base de produccion correcta antes del deploy.
 - Hacer primera importacion CSV para activar la rutina.
 
 ## Desarrollo local con Docker
