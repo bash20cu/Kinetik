@@ -1,9 +1,7 @@
 import { redirect } from "next/navigation"
 
-import { loginAction } from "@/app/actions"
-import { Button } from "@/components/ui/button"
+import { LoginForm } from "@/components/login-form"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { getCurrentUser } from "@/lib/auth"
 import { isDatabaseConfigured } from "@/lib/env"
 
@@ -23,7 +21,7 @@ export default async function LoginPage() {
             Controla tu rutina desde una sola app
           </CardTitle>
           <CardDescription className="text-base">
-            Inicia con tu email para abrir tus planes, sesiones e historial.
+            Inicia con tu email y contrasena para abrir tus planes, sesiones e historial.
           </CardDescription>
         </CardHeader>
 
@@ -34,24 +32,12 @@ export default async function LoginPage() {
               activar el login y la persistencia.
             </div>
           ) : (
-            <form action={loginAction} className="grid gap-4">
-              <div className="grid gap-2">
-                <label htmlFor="email" className="text-sm font-semibold">
-                  Email
-                </label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  placeholder="tu@email.com"
-                  required
-                />
+            <div className="grid gap-4">
+              <div className="rounded-2xl border border-border/70 bg-muted/30 p-4 text-sm text-muted-foreground">
+                El acceso es privado. Las cuentas se crean manualmente por administrador.
               </div>
-
-              <Button type="submit" className="rounded-full">
-                Entrar
-              </Button>
-            </form>
+              <LoginForm />
+            </div>
           )}
         </CardContent>
       </Card>

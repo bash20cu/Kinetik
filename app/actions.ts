@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
-import { requireUser, signInWithEmail, signOut } from "@/lib/auth";
+import { AuthenticationError, requireUser, signInWithPassword, signOut } from "@/lib/auth";
 import {
   activateRoutinePlan,
   archiveRoutinePlan,
@@ -14,48 +14,33 @@ import {
   saveSession,
   updateRoutinePlan
 } from "@/lib/data";
+import { parsePlanPayload, requireId } from "@/lib/validation";
 
-function parsePlanPayload(payload: string) {
-  const parsed = JSON.parse(payload) as {
-    days?: Array<{
-      name?: string;
-      dayOrder?: number;
-      blocks?: Array<{
-        name?: string;
-        blockOrder?: number;
-        exercises?: Array<{
-          name?: string;
-          groupName?: string;
-          variant?: string | null;
-          plannedSets?: number | null;
-          plannedReps?: string | null;
-          notes?: string | null;
-        }>;
-      }>;
-    }>;
-  };
+export type LoginFormState = {
+  error: string | null;
+};
 
-  return (parsed.days ?? []).map((day, dayIndex) => ({
-    name: day.name ?? `Dia ${dayIndex + 1}`,
-    dayOrder: day.dayOrder ?? dayIndex + 1,
-    blocks: (day.blocks ?? []).map((block, blockIndex) => ({
-      name: block.name ?? `Bloque ${blockIndex + 1}`,
-      blockOrder: block.blockOrder ?? blockIndex + 1,
-      exercises: (block.exercises ?? []).map((exercise) => ({
-        name: exercise.name ?? "",
-        groupName: exercise.groupName ?? "",
-        variant: exercise.variant ?? null,
-        plannedSets: exercise.plannedSets ?? null,
-        plannedReps: exercise.plannedReps ?? null,
-        notes: exercise.notes ?? null
-      }))
-    }))
-  }));
-}
-
-export async function loginAction(formData: FormData) {
+export async function loginAction(
+  _previousState: LoginFormState,
+  formData: FormData
+): Promise<LoginFormState> {
   const email = String(formData.get("email") ?? "");
-  await signInWithEmail(email);
+  const password = String(formData.get("password") ?? "");
+
+  try {
+    await signInWithPassword(email, password);
+  } catch (error) {
+    if (error instanceof AuthenticationError || error instanceof Error) {
+      return {
+        error: error.message
+      };
+    }
+
+    return {
+      error: "No pudimos iniciar sesion. Intenta de nuevo."
+    };
+  }
+
   redirect("/");
 }
 
@@ -66,7 +51,7 @@ export async function logoutAction() {
 
 export async function createSessionAction(formData: FormData) {
   const user = await requireUser();
-  const dayId = String(formData.get("dayId") ?? "");
+  const dayId = requireId(formData.get("dayId"), "No encontramos el dia que quieres entrenar.");
   const sessionId = await createSession(user.id, dayId);
   revalidatePath("/");
   revalidatePath("/historial");
@@ -83,7 +68,7 @@ export async function saveSessionAction(sessionId: string, formData: FormData) {
 
 export async function markAlertReadAction(formData: FormData) {
   const user = await requireUser();
-  const alertId = String(formData.get("alertId") ?? "");
+  const alertId = requireId(formData.get("alertId"), "No encontramos la alerta que quieres marcar.");
   await markAlertAsRead(user.id, alertId);
   revalidatePath("/");
 }
@@ -128,13 +113,9 @@ export async function createManualPlanAction(formData: FormData) {
 
 export async function updateRoutinePlanAction(formData: FormData) {
   const user = await requireUser();
-  const planId = String(formData.get("planId") ?? "");
+  const planId = requireId(formData.get("planId"), "No encontramos la rutina que quieres modificar.");
   const planName = String(formData.get("planName") ?? "");
   const payload = String(formData.get("payload") ?? "");
-
-  if (!planId) {
-    throw new Error("No encontramos la rutina que quieres modificar.");
-  }
 
   if (!payload) {
     throw new Error("Debes agregar al menos un dia y un ejercicio.");
@@ -151,11 +132,7 @@ export async function updateRoutinePlanAction(formData: FormData) {
 
 export async function archiveRoutinePlanAction(formData: FormData) {
   const user = await requireUser();
-  const planId = String(formData.get("planId") ?? "");
-
-  if (!planId) {
-    throw new Error("No encontramos la rutina que quieres archivar.");
-  }
+  const planId = requireId(formData.get("planId"), "No encontramos la rutina que quieres archivar.");
 
   await archiveRoutinePlan(user.id, planId);
   revalidatePath("/");
@@ -164,11 +141,7 @@ export async function archiveRoutinePlanAction(formData: FormData) {
 
 export async function activateRoutinePlanAction(formData: FormData) {
   const user = await requireUser();
-  const planId = String(formData.get("planId") ?? "");
-
-  if (!planId) {
-    throw new Error("No encontramos la rutina que quieres activar.");
-  }
+  const planId = requireId(formData.get("planId"), "No encontramos la rutina que quieres activar.");
 
   await activateRoutinePlan(user.id, planId);
   revalidatePath("/");

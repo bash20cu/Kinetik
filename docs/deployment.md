@@ -12,6 +12,7 @@ Configura estas variables de entorno:
 - `DATABASE_URL`
 - `SESSION_SECRET`
 - `APP_URL`
+- `APP_TIMEZONE` opcional
 
 Ejemplo:
 
@@ -24,7 +25,7 @@ APP_URL=https://tu-dominio.vercel.app
 - Durante el deploy, `postinstall` ejecuta `prisma generate`.
 - Antes del build, `prebuild` ejecuta `prisma migrate deploy`.
 - La base debe estar accesible desde Vercel para que las migraciones puedan correr.
-- El login usa email + cookie de sesion.
+- El login usa email + contrasena con cookie de sesion.
 - La plantilla CSV se descarga desde `/api/plan/template`.
 
 ## 4. Checklist rapido

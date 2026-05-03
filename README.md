@@ -8,7 +8,7 @@ App web SSR para gestionar rutinas de gimnasio, importar planes por CSV y regist
 - SSR en Vercel
 - Neon PostgreSQL
 - Prisma ORM
-- Autenticacion simple por email con cookie de sesion
+- Autenticacion privada por email + contrasena con cookie de sesion
 
 ## Variables de entorno
 
@@ -18,9 +18,11 @@ Crear `.env.local` con:
 DATABASE_URL=postgresql://kinetik:kinetik@localhost:5432/kinetik
 SESSION_SECRET=
 APP_URL=http://localhost:3000
+APP_TIMEZONE=America/Costa_Rica
 ```
 
-`SESSION_SECRET` debe ser una cadena larga y privada.
+`SESSION_SECRET` debe ser una cadena larga y privada. `APP_TIMEZONE` es opcional y
+define la zona horaria de negocio usada para `hoy`, calendario y fechas de sesion.
 
 ## Base de datos local con Docker
 
@@ -45,6 +47,16 @@ npm install
 npx prisma migrate deploy
 npm run dev
 ```
+
+## Crear usuarios
+
+No hay registro publico. Las cuentas se crean o actualizan manualmente con:
+
+```bash
+npm run user:create -- usuario@correo.com "tu-password"
+```
+
+Si el usuario ya existe, el comando actualiza su contrasena.
 
 ## Prisma
 

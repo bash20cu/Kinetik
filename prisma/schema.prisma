@@ -41,6 +41,7 @@ enum PlanImportStatus {
 model User {
   id            String          @id @default(uuid())
   email         String          @unique
+  passwordHash  String          @default("") @map("password_hash")
   createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   sessions      UserSession[]
   routinePlans  RoutinePlan[]
@@ -127,6 +128,7 @@ model WorkoutSession {
   day          RoutineDay           @relation(fields: [dayId], references: [id])
   exerciseLogs ExerciseLog[]
 
+  @@unique([userId, dayId, sessionDate])
   @@map("workout_sessions")
 }
 

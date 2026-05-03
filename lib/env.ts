@@ -1,5 +1,5 @@
 export function isDatabaseConfigured() {
-  return Boolean(process.env.DATABASE_URL);
+  return Boolean(process.env.DATABASE_URL) && Boolean(process.env.SESSION_SECRET);
 }
 
 export function getDatabaseUrl() {
@@ -20,4 +20,8 @@ export function getSessionSecret() {
   }
 
   return value;
+}
+
+export function getAppTimeZone() {
+  return process.env.APP_TIMEZONE?.trim() || "America/Costa_Rica";
 }

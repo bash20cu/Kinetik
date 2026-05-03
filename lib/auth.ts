@@ -4,9 +4,13 @@ import { redirect } from "next/navigation";
 
 import { prisma } from "@/lib/prisma";
 import { getSessionSecret, isDatabaseConfigured } from "@/lib/env";
+import { hashPassword, verifyPassword } from "@/lib/password";
 import type { User } from "@/lib/types";
+import { requireEmail, requirePassword } from "@/lib/validation";
 
 const COOKIE_NAME = "kinetik_session";
+
+export class AuthenticationError extends Error {}
 
 function hashToken(token: string) {
   return createHash("sha256").update(`${token}:${getSessionSecret()}`).digest("hex");
@@ -57,25 +61,18 @@ export async function requireUser() {
   return user;
 }
 
-export async function signInWithEmail(email: string) {
-  const normalizedEmail = email.trim().toLowerCase();
+export async function signInWithPassword(email: string, password: string) {
+  const normalizedEmail = requireEmail(email);
+  const normalizedPassword = requirePassword(password);
 
-  if (!normalizedEmail) {
-    throw new Error("El email es obligatorio.");
-  }
-
-  let user = await prisma.user.findUnique({
+  const user = await prisma.user.findUnique({
     where: {
       email: normalizedEmail
     }
   });
 
-  if (!user) {
-    user = await prisma.user.create({
-      data: {
-        email: normalizedEmail
-      }
-    });
+  if (!user?.passwordHash || !verifyPassword(normalizedPassword, user.passwordHash)) {
+    throw new AuthenticationError("Email o contrasena incorrectos.");
   }
 
   const token = randomBytes(24).toString("hex");
@@ -93,6 +90,24 @@ export async function signInWithEmail(email: string) {
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: 60 * 60 * 24 * 30
+  });
+}
+
+export async function provisionUser(email: string, password: string) {
+  const normalizedEmail = requireEmail(email);
+  const normalizedPassword = requirePassword(password);
+
+  return prisma.user.upsert({
+    where: {
+      email: normalizedEmail
+    },
+    update: {
+      passwordHash: hashPassword(normalizedPassword)
+    },
+    create: {
+      email: normalizedEmail,
+      passwordHash: hashPassword(normalizedPassword)
+    }
   });
 }
 

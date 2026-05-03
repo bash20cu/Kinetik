@@ -1,6 +1,5 @@
 import {
   AlertType,
-  ExerciseLogStatus,
   PlanImportStatus,
   Prisma,
   RoutinePlanStatus,
@@ -8,6 +7,7 @@ import {
 } from "@prisma/client";
 
 import { parseRoutineCsv } from "@/lib/csv";
+import { addDays, formatDate, startOfWeek, today, toDateString } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import type {
   CsvExerciseRow,
@@ -21,6 +21,11 @@ import type {
   WeeklyCalendarDay,
   WorkoutSession
 } from "@/lib/types";
+import {
+  parseExerciseStatus,
+  parseOptionalNonNegativeInteger,
+  parseSessionStatus
+} from "@/lib/validation";
 
 type ManualRoutineExerciseInput = {
   name: string;
@@ -42,28 +47,6 @@ type ManualRoutineDayInput = {
   dayOrder: number;
   blocks: ManualRoutineBlockInput[];
 };
-
-function today() {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  return now;
-}
-
-function addDays(base: Date, days: number) {
-  const date = new Date(base);
-  date.setDate(date.getDate() + days);
-  return date;
-}
-
-function startOfWeek(base: Date) {
-  const day = base.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  return addDays(base, diff);
-}
-
-function toDateString(value: Date) {
-  return value.toISOString().slice(0, 10);
-}
 
 function mapAlert(alert: {
   id: string;
@@ -225,7 +208,8 @@ export async function markAlertAsRead(userId: string, alertId: string) {
 export async function getUnreadAlerts(userId: string) {
   const alerts = await prisma.inAppAlert.findMany({
     where: {
-      userId
+      userId,
+      readAt: null
     },
     orderBy: {
       createdAt: "desc"
@@ -429,9 +413,6 @@ export async function getWeeklyCalendar(userId: string): Promise<WeeklyCalendarD
     }
   });
 
-  const weekdayFormatter = new Intl.DateTimeFormat("es-CR", { weekday: "short" });
-  const dateFormatter = new Intl.DateTimeFormat("es-CR", { day: "2-digit", month: "2-digit" });
-
   const routineDays = activePlan?.days ?? [];
   const cycleDays = routineDays.length > 0 ? [...routineDays, ...routineDays] : [];
 
@@ -439,7 +420,7 @@ export async function getWeeklyCalendar(userId: string): Promise<WeeklyCalendarD
     const date = addDays(weekStart, index);
     const isoDate = toDateString(date);
     const isToday = isoDate === toDateString(base);
-    const isSunday = date.getDay() === 0;
+    const isSunday = date.getUTCDay() === 0;
     const assigned = !isSunday && cycleDays.length > 0 ? cycleDays[index % cycleDays.length] : null;
     const matchingSession = sessions.find((session) => toDateString(session.sessionDate) === isoDate) ?? null;
 
@@ -459,8 +440,8 @@ export async function getWeeklyCalendar(userId: string): Promise<WeeklyCalendarD
 
     return {
       date: isoDate,
-      dateLabel: dateFormatter.format(date),
-      weekdayLabel: weekdayFormatter.format(date).replace(".", "").toUpperCase(),
+      dateLabel: formatDate(date, "es-CR", { day: "2-digit", month: "2-digit" }),
+      weekdayLabel: formatDate(date, "es-CR", { weekday: "short" }).replace(".", "").toUpperCase(),
       isToday,
       assignedDayId: assigned?.id ?? matchingSession?.day.id ?? null,
       assignedDayName: assigned?.name ?? matchingSession?.day.name ?? null,
@@ -573,22 +554,50 @@ export async function createSession(userId: string, dayId: string) {
     throw new Error("No encontramos el dia de rutina solicitado.");
   }
 
-  const session = await prisma.workoutSession.create({
-    data: {
-      userId,
-      planId: day.planId,
-      dayId,
-      sessionDate: today(),
-      status: WorkoutSessionStatus.planned
+  const sessionDate = today();
+
+  const { session, created } = await prisma.$transaction(async (tx) => {
+    const existing = await tx.workoutSession.findUnique({
+      where: {
+        userId_dayId_sessionDate: {
+          userId,
+          dayId,
+          sessionDate
+        }
+      }
+    });
+
+    if (existing) {
+      return {
+        session: existing,
+        created: false
+      };
     }
+
+    const session = await tx.workoutSession.create({
+      data: {
+        userId,
+        planId: day.planId,
+        dayId,
+        sessionDate,
+        status: WorkoutSessionStatus.planned
+      }
+    });
+
+    return {
+      session,
+      created: true
+    };
   });
 
-  await createAlert({
-    userId,
-    type: "info",
-    title: "Sesion creada",
-    body: `Tu sesion para ${day.name} ya esta lista para registrar progreso.`
-  });
+  if (created) {
+    await createAlert({
+      userId,
+      type: "info",
+      title: "Sesion creada",
+      body: `Tu sesion para ${day.name} ya esta lista para registrar progreso.`
+    });
+  }
 
   return session.id;
 }
@@ -603,12 +612,14 @@ export async function saveSession(userId: string, sessionId: string, formData: F
   await prisma.$transaction(async (tx) => {
     for (const block of detail.blocks) {
       for (const exercise of block.exercises) {
-        const status = String(formData.get(`status-${exercise.id}`) ?? "pending") as ExerciseLogStatus;
-        const setsCompletedValue = String(formData.get(`sets-${exercise.id}`) ?? "").trim();
+        const status = parseExerciseStatus(formData.get(`status-${exercise.id}`) ?? "pending");
         const reps = String(formData.get(`reps-${exercise.id}`) ?? "").trim();
         const weight = String(formData.get(`weight-${exercise.id}`) ?? "").trim();
         const note = String(formData.get(`note-${exercise.id}`) ?? "").trim();
-        const parsedSets = setsCompletedValue ? Number(setsCompletedValue) : null;
+        const parsedSets = parseOptionalNonNegativeInteger(
+          formData.get(`sets-${exercise.id}`),
+          `Las series completadas de ${exercise.name}`
+        );
 
         await tx.exerciseLog.upsert({
           where: {
@@ -638,7 +649,7 @@ export async function saveSession(userId: string, sessionId: string, formData: F
     }
 
     const generalNotes = String(formData.get("generalNotes") ?? "").trim();
-    const status = String(formData.get("sessionStatus") ?? "in_progress") as WorkoutSessionStatus;
+    const status = parseSessionStatus(formData.get("sessionStatus") ?? "in_progress");
 
     await tx.workoutSession.update({
       where: {
@@ -651,7 +662,7 @@ export async function saveSession(userId: string, sessionId: string, formData: F
     });
   });
 
-  const sessionStatus = String(formData.get("sessionStatus") ?? "in_progress");
+  const sessionStatus = parseSessionStatus(formData.get("sessionStatus") ?? "in_progress");
 
   if (sessionStatus === WorkoutSessionStatus.completed) {
     await createAlert({
@@ -971,10 +982,59 @@ export async function importPlanFromCsv(userId: string, fileName: string, csvTex
     }
   });
 
-  const parsed = parseRoutineCsv(csvText);
+  try {
+    const parsed = parseRoutineCsv(csvText);
 
-  if (!parsed.ok) {
-    const summary = parsed.errors.join(" | ").slice(0, 1200);
+    if (!parsed.ok) {
+      const summary = parsed.errors.join(" | ").slice(0, 1200);
+
+      await prisma.planImport.update({
+        where: {
+          id: importItem.id
+        },
+        data: {
+          status: PlanImportStatus.failed,
+          errorSummary: summary
+        }
+      });
+
+      await createAlert({
+        userId,
+        type: "error",
+        title: "Importacion rechazada",
+        body: "El CSV tiene errores. Revisa el detalle de la carga e intenta de nuevo."
+      });
+
+      return { ok: false as const, errors: parsed.errors };
+    }
+
+    const groupedDays = groupCsvRows(parsed.rows);
+
+    await createStructuredPlan(userId, `Plan ${toDateString(today())}`, groupedDays);
+
+    await prisma.planImport.update({
+      where: {
+        id: importItem.id
+      },
+      data: {
+        status: PlanImportStatus.success,
+        errorSummary: null
+      }
+    });
+
+    await createAlert({
+      userId,
+      type: "success",
+      title: "Rutina actualizada",
+      body: `Se activo un nuevo plan con ${parsed.rows.length} ejercicios importados.`
+    });
+
+    return { ok: true as const };
+  } catch (error) {
+    const summary =
+      error instanceof Error
+        ? error.message.slice(0, 1200)
+        : "La importacion fallo por un error inesperado.";
 
     await prisma.planImport.update({
       where: {
@@ -989,33 +1049,10 @@ export async function importPlanFromCsv(userId: string, fileName: string, csvTex
     await createAlert({
       userId,
       type: "error",
-      title: "Importacion rechazada",
-      body: "El CSV tiene errores. Revisa el detalle de la carga e intenta de nuevo."
+      title: "Importacion fallida",
+      body: "No pudimos completar la importacion. Revisa el detalle e intenta de nuevo."
     });
 
-    return { ok: false as const, errors: parsed.errors };
+    throw error;
   }
-
-  const groupedDays = groupCsvRows(parsed.rows);
-
-  await createStructuredPlan(userId, `Plan ${toDateString(today())}`, groupedDays);
-
-  await prisma.planImport.update({
-    where: {
-      id: importItem.id
-    },
-    data: {
-      status: PlanImportStatus.success,
-      errorSummary: null
-    }
-  });
-
-  await createAlert({
-    userId,
-    type: "success",
-    title: "Rutina actualizada",
-    body: `Se activo un nuevo plan con ${parsed.rows.length} ejercicios importados.`
-  });
-
-  return { ok: true as const };
 }
