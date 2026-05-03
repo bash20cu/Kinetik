@@ -1,0 +1,151 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 34 43% 97%;
+    --foreground: 213 33% 13%;
+    --card: 0 0% 100%;
+    --card-foreground: 213 33% 13%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 213 33% 13%;
+    --primary: 16 88% 55%;
+    --primary-foreground: 30 33% 98%;
+    --secondary: 40 30% 93%;
+    --secondary-foreground: 213 33% 16%;
+    --muted: 36 22% 92%;
+    --muted-foreground: 215 15% 43%;
+    --accent: 75 100% 62%;
+    --accent-foreground: 210 39% 13%;
+    --destructive: 348 76% 57%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 214 20% 86%;
+    --input: 214 20% 86%;
+    --ring: 16 88% 55%;
+    --chart-1: 16 88% 55%;
+    --chart-2: 75 100% 62%;
+    --chart-3: 213 60% 36%;
+    --chart-4: 28 80% 62%;
+    --chart-5: 155 65% 42%;
+    --radius: 1rem;
+  }
+
+  .dark {
+    --background: 213 36% 8%;
+    --foreground: 36 30% 96%;
+    --card: 214 30% 11%;
+    --card-foreground: 36 30% 96%;
+    --popover: 214 30% 11%;
+    --popover-foreground: 36 30% 96%;
+    --primary: 16 92% 58%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 213 21% 17%;
+    --secondary-foreground: 36 30% 96%;
+    --muted: 214 20% 16%;
+    --muted-foreground: 215 14% 73%;
+    --accent: 75 90% 58%;
+    --accent-foreground: 213 39% 11%;
+    --destructive: 348 72% 54%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 18% 22%;
+    --input: 214 18% 22%;
+    --ring: 16 92% 58%;
+    --chart-1: 16 92% 58%;
+    --chart-2: 75 90% 58%;
+    --chart-3: 205 76% 61%;
+    --chart-4: 31 93% 64%;
+    --chart-5: 158 64% 48%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply min-h-screen bg-background text-foreground antialiased;
+    font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+    background-image:
+      radial-gradient(circle at top left, rgba(255, 112, 54, 0.18), transparent 22%),
+      radial-gradient(circle at 88% 16%, rgba(205, 255, 40, 0.14), transparent 18%),
+      linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--background)) 100%);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: "Oswald", "Arial Narrow", sans-serif;
+    letter-spacing: 0.01em;
+  }
+
+  button,
+  [role="button"],
+  a,
+  input,
+  select,
+  textarea {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background;
+  }
+}
+
+@layer components {
+  .page-shell {
+    @apply min-h-screen;
+  }
+
+  .topbar-shell {
+    @apply sticky top-0 z-30 border-b border-border/60 bg-background/80 backdrop-blur-xl;
+  }
+
+  .topbar-grid {
+    @apply container flex flex-col gap-4 py-4 md:flex-row md:items-center md:justify-between;
+  }
+
+  .page-container {
+    @apply container py-8 md:py-10;
+  }
+
+  .page-heading {
+    @apply text-4xl uppercase tracking-wide md:text-5xl;
+  }
+
+  .eyebrow {
+    @apply mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-primary;
+  }
+
+  .glass-card {
+    @apply rounded-[1.75rem] border border-border/70 bg-card/90 shadow-glow backdrop-blur;
+  }
+
+  .metric-card {
+    @apply rounded-2xl border border-border/70 bg-background/70 p-4;
+  }
+
+  .panel-grid {
+    @apply grid gap-4;
+  }
+
+  .hero-panel {
+    @apply relative overflow-hidden rounded-[2rem] border border-border/70 bg-card px-6 py-6 shadow-glow;
+  }
+
+  .hero-panel::after {
+    content: "";
+    @apply pointer-events-none absolute -bottom-20 -right-8 size-48 rounded-full bg-accent/20 blur-3xl;
+  }
+
+  .skip-link {
+    @apply absolute left-4 top-[-4rem] z-50 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground transition-all focus:top-4;
+  }
+
+  .status-select {
+    @apply flex h-11 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors;
+  }
+}
