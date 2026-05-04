@@ -896,6 +896,76 @@ export async function repeatFreeWorkoutTemplate(userId: string, templateDayId: s
   return createFreeWorkoutSession(userId, getFreeWorkoutDisplayName(templateDay.plan.name), exercises);
 }
 
+export async function addExerciseToSession(
+  userId: string,
+  sessionId: string,
+  input: FreeWorkoutInput
+) {
+  const name = input.name.trim();
+
+  if (!name) {
+    throw new Error("El nombre del ejercicio es obligatorio.");
+  }
+
+  const session = await prisma.workoutSession.findFirst({
+    where: {
+      id: sessionId,
+      userId
+    },
+    include: {
+      day: {
+        include: {
+          blocks: {
+            orderBy: {
+              blockOrder: "asc"
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (!session) {
+    throw new Error("No encontramos la sesion para agregar el ejercicio.");
+  }
+
+  const block =
+    session.day.blocks[0] ??
+    (await prisma.routineBlock.create({
+      data: {
+        dayId: session.dayId,
+        name: "Bloque libre",
+        blockOrder: 1
+      }
+    }));
+
+  await prisma.$transaction(async (tx) => {
+    await tx.exercise.create({
+      data: {
+        blockId: block.id,
+        name,
+        groupName: input.groupName?.trim() || block.name || "Libre",
+        variant: input.variant?.trim() || null,
+        plannedSets:
+          typeof input.plannedSets === "number" && input.plannedSets > 0
+            ? input.plannedSets
+            : null,
+        plannedReps: input.plannedReps?.trim() || null,
+        notes: input.notes?.trim() || null
+      }
+    });
+
+    await tx.workoutSession.update({
+      where: {
+        id: sessionId
+      },
+      data: {
+        status: WorkoutSessionStatus.in_progress
+      }
+    });
+  });
+}
+
 export async function saveSession(userId: string, sessionId: string, formData: FormData) {
   const detail = await getSessionDetail(userId, sessionId);
 

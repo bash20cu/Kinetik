@@ -5,7 +5,10 @@ import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
   title: "Kinetik",
-  description: "Controla tu rutina, sesiones y cambios de plan."
+  description: "Controla tu rutina, sesiones y cambios de plan.",
+  icons: {
+    icon: "/favicon.svg"
+  }
 };
 
 export default function RootLayout({
@@ -14,7 +17,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" suppressHydrationWarning>
+    <html lang="es" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body>
         <ThemeProvider
           attribute="class"

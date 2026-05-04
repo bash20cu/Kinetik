@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 
 import {
   AuthenticationError,
@@ -14,6 +15,7 @@ import {
 } from "@/lib/auth";
 import {
   activateRoutinePlan,
+  addExerciseToSession,
   archiveRoutinePlan,
   createFreeWorkoutSession,
   createSession,
@@ -115,12 +117,57 @@ export async function saveSessionAction(sessionId: string, formData: FormData) {
   revalidatePath(`/sesion/${sessionId}`);
   revalidatePath("/historial");
   revalidatePath("/");
+
+  const afterSave = String(formData.get("afterSave") ?? "");
+
+  if (afterSave === "home") {
+    redirect("/");
+  }
+
+  if (afterSave === "history") {
+    redirect("/historial");
+  }
+
+  if (afterSave === "free") {
+    redirect("/entrenar/libre");
+  }
+}
+
+export async function addExerciseToSessionAction(sessionId: string, formData: FormData) {
+  const user = await requireUser();
+
+  await saveSession(user.id, sessionId, formData);
+
+  const plannedSetsRaw = String(formData.get("newExerciseSets") ?? "").trim();
+  const plannedSets = plannedSetsRaw ? Number.parseInt(plannedSetsRaw, 10) : null;
+
+  await addExerciseToSession(user.id, sessionId, {
+    name: String(formData.get("newExerciseName") ?? ""),
+    groupName: String(formData.get("newExerciseGroup") ?? ""),
+    variant: String(formData.get("newExerciseVariant") ?? "") || null,
+    plannedSets: Number.isFinite(plannedSets) ? plannedSets : null,
+    plannedReps: String(formData.get("newExerciseReps") ?? ""),
+    notes: String(formData.get("newExerciseNotes") ?? "")
+  });
+
+  revalidatePath(`/sesion/${sessionId}`);
+  revalidatePath("/");
+  revalidatePath("/historial");
+  revalidatePath("/rutina");
+  redirect(`/sesion/${sessionId}`);
 }
 
 export async function markAlertReadAction(formData: FormData) {
   const user = await requireUser();
   const alertId = requireId(formData.get("alertId"), "No encontramos la alerta que quieres marcar.");
   await markAlertAsRead(user.id, alertId);
+
+  const referer = (await headers()).get("referer");
+  if (referer) {
+    const pathname = new URL(referer).pathname;
+    revalidatePath(pathname);
+  }
+
   revalidatePath("/");
 }
 

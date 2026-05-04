@@ -1,6 +1,6 @@
 "use client"
 
-import { Pause, Play, SkipForward, TimerReset } from "lucide-react"
+import { Bell, Pause, Play, SkipForward, TimerReset } from "lucide-react"
 import { useMemo } from "react"
 
 import { Badge } from "@/components/ui/badge"
@@ -21,6 +21,8 @@ type RestTimerCardProps = {
   running: boolean
   nextLabel: string | null
   notificationPermission: NotificationPermission | "unsupported"
+  notificationHint: string
+  onEnableNotifications: () => void
   onToggle: () => void
   onReset: () => void
   onPreset: (seconds: number) => void
@@ -33,6 +35,8 @@ export function RestTimerCard({
   running,
   nextLabel,
   notificationPermission,
+  notificationHint,
+  onEnableNotifications,
   onToggle,
   onReset,
   onPreset,
@@ -90,28 +94,36 @@ export function RestTimerCard({
 
         <div
           className={cn(
-            "rounded-[1rem] border px-3 py-2 text-xs md:rounded-[1.35rem] md:px-4 md:py-3 md:text-sm",
+            "flex items-center justify-between gap-2 rounded-[1rem] border px-3 py-2 text-xs md:rounded-[1.35rem] md:px-4 md:py-3 md:text-sm",
             notificationPermission === "granted"
               ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
               : "border-border/70 bg-background/70 text-muted-foreground"
           )}
         >
-          {notificationPermission === "granted"
-            ? "Notificaciones activas para avisarte cuando termine el descanso."
-            : "Si el navegador lo permite, la app avisara cuando termine el descanso."}
+          <span className="min-w-0">
+            {notificationPermission === "granted"
+              ? "Notificaciones activas."
+              : notificationHint || "Activa aviso del sistema si tu navegador lo permite."}
+          </span>
+          {notificationPermission === "default" ? (
+            <Button type="button" size="sm" variant="outline" className="h-8 shrink-0 rounded-full px-3 text-xs" onClick={onEnableNotifications}>
+              <Bell className="size-3.5" />
+              Activar
+            </Button>
+          ) : null}
         </div>
       </div>
 
-      <div className="mt-auto grid gap-2 pt-4 sm:grid-cols-3 md:mt-5 md:pt-0">
-        <Button type="button" variant="secondary" onClick={onToggle} className="min-h-10 rounded-[1rem] md:min-h-12 md:rounded-2xl">
+      <div className="mt-auto grid grid-cols-3 gap-2 pt-4 md:mt-5 md:pt-0">
+        <Button type="button" variant="secondary" onClick={onToggle} className="min-h-10 rounded-[1rem] px-2 text-xs md:min-h-12 md:rounded-2xl md:text-sm">
           {running ? <Pause className="size-4" /> : <Play className="size-4" />}
           {running ? "Pausar" : "Reanudar"}
         </Button>
-        <Button type="button" variant="outline" onClick={onReset} className="min-h-10 rounded-[1rem] md:min-h-12 md:rounded-2xl">
+        <Button type="button" variant="outline" onClick={onReset} className="min-h-10 rounded-[1rem] px-2 text-xs md:min-h-12 md:rounded-2xl md:text-sm">
           <TimerReset className="size-4" />
           Reiniciar
         </Button>
-        <Button type="button" variant="ghost" onClick={onSkip} className="min-h-10 rounded-[1rem] md:min-h-12 md:rounded-2xl">
+        <Button type="button" variant="ghost" onClick={onSkip} className="min-h-10 rounded-[1rem] px-2 text-xs md:min-h-12 md:rounded-2xl md:text-sm">
           <SkipForward className="size-4" />
           Seguir ya
         </Button>

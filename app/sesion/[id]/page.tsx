@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation"
 
-import { saveSessionAction } from "@/app/actions"
+import { addExerciseToSessionAction, saveSessionAction } from "@/app/actions"
 import { AppShell } from "@/components/app-shell"
 import { SessionWorkoutFlow } from "@/components/session-workout-flow"
 import { SetupCallout } from "@/components/setup-callout"
@@ -33,10 +33,11 @@ export default async function SessionPage({ params }: SessionPageProps) {
   }
 
   const saveAction = saveSessionAction.bind(null, session.id)
+  const addExerciseAction = addExerciseToSessionAction.bind(null, session.id)
 
   return (
     <AppShell user={user} alerts={alerts}>
-      <SessionWorkoutFlow session={session} action={saveAction} />
+      <SessionWorkoutFlow session={session} action={saveAction} addExerciseAction={addExerciseAction} />
     </AppShell>
   )
 }

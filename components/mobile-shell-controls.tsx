@@ -90,7 +90,7 @@ export function MobileShellControls({ alerts }: MobileShellControlsProps) {
                   {!alert.readAt ? (
                     <form action={markAlertReadAction} className="mt-3">
                       <input type="hidden" name="alertId" value={alert.id} />
-                      <Button type="submit" variant="ghost" size="sm" onClick={() => setAlertsOpen(false)}>
+                      <Button type="submit" variant="ghost" size="sm">
                         Marcar leida
                       </Button>
                     </form>
