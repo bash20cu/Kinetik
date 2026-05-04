@@ -17,6 +17,7 @@ import type {
   InAppAlert,
   ManagedUser,
   PlanImport,
+  RoutineDayOption,
   RoutinePlan,
   RoutinePlanSummary,
   SessionDetail,
