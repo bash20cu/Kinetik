@@ -7,18 +7,14 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum RoutinePlanStatus {
-  active
-  archived
-}
-
-enum WorkoutSessionStatus {
+enum SessionLogStatus {
   planned
   in_progress
   completed
+  discarded
 }
 
-enum ExerciseLogStatus {
+enum SessionExerciseStatus {
   pending
   in_progress
   completed
@@ -32,20 +28,19 @@ enum AlertType {
   error
 }
 
-enum PlanImportStatus {
-  processing
-  success
-  failed
+enum RoutineTemplateStatus {
+  active
+  archived
 }
 
 model User {
-  id            String          @id @default(uuid())
-  email         String          @unique
-  passwordHash  String          @default("") @map("password_hash")
-  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  id            String            @id @default(uuid())
+  email         String            @unique
+  passwordHash  String            @default("") @map("password_hash")
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   sessions      UserSession[]
-  routinePlans  RoutinePlan[]
-  workoutSessions WorkoutSession[]
+  sessionLogs   SessionLog[]
+  templates     RoutineTemplate[]
   alerts        InAppAlert[]
   planImports   PlanImport[]
 
@@ -62,91 +57,88 @@ model UserSession {
   @@map("user_sessions")
 }
 
-model RoutinePlan {
-  id         String             @id @default(uuid())
-  userId     String             @map("user_id")
-  name       String
-  activeFrom DateTime           @map("active_from") @db.Date
-  status     RoutinePlanStatus
-  createdAt  DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  days       RoutineDay[]
-  sessions   WorkoutSession[]
+model ExerciseLibrary {
+  id            String            @id @default(uuid())
+  name          String            @unique
+  groupName     String            @map("group_name")
+  defaultSets   Int?              @map("default_sets")
+  defaultReps   String?           @map("default_reps")
+  defaultRest   Int?              @map("default_rest")
+  notes         String?
+  variant       String?
+  sessionExercises SessionExercise[]
+  templateExercises RoutineTemplateExercise[]
 
-  @@map("routine_plans")
+  @@map("exercise_library")
 }
 
-model RoutineDay {
-  id        String         @id @default(uuid())
-  planId    String         @map("plan_id")
-  name      String
-  dayOrder  Int            @map("day_order")
-  plan      RoutinePlan    @relation(fields: [planId], references: [id], onDelete: Cascade)
-  blocks    RoutineBlock[]
-  sessions  WorkoutSession[]
+model SessionLog {
+  id               String             @id @default(uuid())
+  userId           String             @map("user_id")
+  sessionDate      DateTime           @map("session_date") @db.Date
+  durationSeconds  Int?               @map("duration_seconds")
+  status           SessionLogStatus
+  generalNotes     String?            @map("general_notes")
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercises        SessionExercise[]
 
-  @@map("routine_days")
+  @@index([userId, sessionDate])
+  @@map("session_logs")
 }
 
-model RoutineBlock {
-  id         String     @id @default(uuid())
-  dayId       String    @map("day_id")
-  name        String
-  blockOrder  Int       @map("block_order")
-  day         RoutineDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
-  exercises   Exercise[]
-
-  @@map("routine_blocks")
-}
-
-model Exercise {
-  id          String        @id @default(uuid())
-  blockId     String        @map("block_id")
-  name        String
-  groupName   String        @map("group_name")
-  variant     String?
-  plannedSets Int?          @map("planned_sets")
-  plannedReps String?       @map("planned_reps")
-  notes       String?
-  block       RoutineBlock  @relation(fields: [blockId], references: [id], onDelete: Cascade)
-  exerciseLogs ExerciseLog[]
-
-  @@map("exercises")
-}
-
-model WorkoutSession {
-  id           String               @id @default(uuid())
-  userId       String               @map("user_id")
-  planId       String               @map("plan_id")
-  dayId        String               @map("day_id")
-  sessionDate  DateTime             @map("session_date") @db.Date
-  status       WorkoutSessionStatus
-  generalNotes String?              @map("general_notes")
-  createdAt    DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  plan         RoutinePlan          @relation(fields: [planId], references: [id])
-  day          RoutineDay           @relation(fields: [dayId], references: [id])
-  exerciseLogs ExerciseLog[]
-
-  @@unique([userId, dayId, sessionDate])
-  @@map("workout_sessions")
-}
-
-model ExerciseLog {
-  id            String             @id @default(uuid())
-  sessionId     String             @map("session_id")
-  exerciseId    String             @map("exercise_id")
-  setsCompleted Int?               @map("sets_completed")
+model SessionExercise {
+  id            String                @id @default(uuid())
+  sessionId     String                @map("session_id")
+  exerciseId    String?               @map("exercise_id")
+  customName    String?               @map("custom_name")
+  groupName     String                @map("group_name")
+  orderIndex    Int                   @map("order_index")
+  plannedSets   Int?                  @map("planned_sets")
+  plannedReps   String?               @map("planned_reps")
+  actualSets    Int?                  @map("actual_sets")
   reps          String?
   weight        String?
-  status        ExerciseLogStatus
+  status        SessionExerciseStatus
   note          String?
-  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  session       WorkoutSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  exercise      Exercise           @relation(fields: [exerciseId], references: [id])
+  createdAt     DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  session       SessionLog            @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exercise      ExerciseLibrary?      @relation(fields: [exerciseId], references: [id], onDelete: SetNull)
 
-  @@unique([sessionId, exerciseId])
-  @@map("exercise_logs")
+  @@unique([sessionId, orderIndex])
+  @@index([sessionId])
+  @@map("session_exercises")
+}
+
+model RoutineTemplate {
+  id          String                    @id @default(uuid())
+  userId      String                    @map("user_id")
+  name        String
+  status      RoutineTemplateStatus
+  isFavorite  Boolean                   @default(false) @map("is_favorite")
+  createdAt   DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  user        User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercises   RoutineTemplateExercise[]
+
+  @@map("routine_templates")
+}
+
+model RoutineTemplateExercise {
+  id            String          @id @default(uuid())
+  templateId    String          @map("template_id")
+  exerciseId    String?         @map("exercise_id")
+  customName    String?         @map("custom_name")
+  groupName     String          @map("group_name")
+  orderIndex    Int             @map("order_index")
+  plannedSets   Int?            @map("planned_sets")
+  plannedReps   String?         @map("planned_reps")
+  notes         String?
+  variant       String?
+  template      RoutineTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  exercise      ExerciseLibrary? @relation(fields: [exerciseId], references: [id], onDelete: SetNull)
+
+  @@unique([templateId, orderIndex])
+  @@map("routine_template_exercises")
 }
 
 model InAppAlert {
@@ -172,4 +164,10 @@ model PlanImport {
   user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("plan_imports")
+}
+
+enum PlanImportStatus {
+  processing
+  success
+  failed
 }

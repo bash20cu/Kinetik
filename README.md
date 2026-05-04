@@ -50,13 +50,18 @@ npm run dev
 
 ## Crear usuarios
 
-No hay registro publico. Las cuentas se crean o actualizan manualmente con:
+No hay registro publico. El seed crea automaticamente un usuario por defecto:
+
+- Email: `admin@kinetik.app`
+- Password: `kinetik123`
+
+Puedes cambiarlo con variables de entorno `SEED_USER_EMAIL` y `SEED_USER_PASSWORD`.
+
+Usuarios adicionales se crean o actualizan manualmente con:
 
 ```bash
 npm run user:create -- usuario@correo.com "tu-password"
 ```
-
-Si el usuario ya existe, el comando actualiza su contrasena.
 
 ## Prisma
 
@@ -78,8 +83,9 @@ En deploy:
 - `postinstall` ejecuta `prisma generate`
 - `prebuild` ejecuta `prisma migrate deploy`
 - `build` ejecuta `next build`
+- `postbuild` ejecuta el seed (ejercicios + usuario por defecto)
 
-Esto asegura que el cliente Prisma exista y que la base tenga las migraciones aplicadas antes de compilar la app.
+Esto asegura que el cliente Prisma exista, la base tenga las migraciones aplicadas y haya datos iniciales.
 
 ## CSV de rutina
 

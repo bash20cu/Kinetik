@@ -1,7 +1,8 @@
 "use client"
 
-import { ArrowRight, BellRing, CheckCircle2, Dumbbell, LayoutPanelTop, NotebookPen, Trophy, X } from "lucide-react"
+import { ArrowLeft, ArrowRight, BellRing, CheckCircle2, Dumbbell, NotebookPen, Plus, Trophy, X } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 
 import { ExerciseActionCard } from "@/components/exercise-action-card"
 import { RestTimerCard } from "@/components/rest-timer-card"
@@ -10,33 +11,34 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { getWorkoutSessionBadgeVariant } from "@/lib/status-ui"
-import type { ExerciseLog, SessionDetail } from "@/lib/types"
+import type { SessionDetail, SessionExercise } from "@/lib/types"
 import { cn } from "@/lib/utils"
-import { EXERCISE_GROUPS, EXERCISE_LIBRARY, VARIANT_OPTIONS } from "@/lib/workout-presets"
 
-type SessionPhase = "exercise" | "record" | "rest" | "complete" | "add_exercise"
+type SessionPhase = "exercise" | "record" | "rest" | "complete" | "add_exercise" | "exerciseSetup"
 
 type SessionWorkoutFlowProps = {
   session: SessionDetail
   action: (formData: FormData) => void | Promise<void>
-  addExerciseAction: (formData: FormData) => void | Promise<void>
+  addAction: (formData: FormData) => void | Promise<void>
+  exerciseGroups: Record<string, { name: string; groupName: string; id: string; defaultSets: number; defaultReps: string }[]>
 }
 
-const CUSTOM_EXERCISE_VALUE = "__custom__"
+type ExerciseSetup = {
+  plannedSets: number
+  plannedReps: string
+  weight: string
+}
 
-type FlattenedExercise = {
-  blockId: string
-  blockName: string
+type ExerciseItem = {
   orderLabel: string
-  exercise: SessionDetail["blocks"][number]["exercises"][number]
+  exercise: SessionDetail["exercises"][number]
 }
 
 type ExerciseState = {
   setsCompleted: number
   reps: string
   weight: string
-  status: ExerciseLog["status"]
+  status: SessionExercise["status"]
   note: string
 }
 
@@ -45,15 +47,6 @@ type PendingRestPlan = {
   completesWorkout: boolean
   message: string
   seconds?: number
-}
-
-type NewExerciseDraft = {
-  name: string
-  groupName: string
-  variant: string
-  plannedSets: string
-  plannedReps: string
-  notes: string
 }
 
 const SET_MESSAGES = [
@@ -68,33 +61,30 @@ const EXERCISE_MESSAGES = [
   "Muy bien. Cerraste este ejercicio con autoridad."
 ]
 
-const REST_DONE_MESSAGES = [
-  "Descanso terminado. Te toca volver a empujar.",
-  "Reloj en cero. Sigue con el siguiente movimiento.",
-  "Listo. El mazo avanza contigo."
-]
-
 function pickMessage(collection: string[], seed: number) {
   return collection[seed % collection.length]
 }
 
-function getInitialState(item: FlattenedExercise): ExerciseState {
+function getDisplayName(exercise: SessionDetail["exercises"][number]): string {
+  return exercise.customName || exercise.libraryExercise?.name || "Ejercicio"
+}
+
+function getDisplayGroup(exercise: SessionDetail["exercises"][number]): string {
+  return exercise.libraryExercise?.groupName || exercise.groupName
+}
+
+function getInitialState(exercise: SessionDetail["exercises"][number]): ExerciseState {
   return {
-    setsCompleted: item.exercise.log?.setsCompleted ?? 0,
-    reps: item.exercise.log?.reps ?? item.exercise.plannedReps ?? "",
-    weight: item.exercise.log?.weight ?? "",
-    status: item.exercise.log?.status ?? "pending",
-    note: item.exercise.log?.note ?? ""
+    setsCompleted: exercise.actualSets ?? 0,
+    reps: exercise.reps ?? exercise.plannedReps ?? "",
+    weight: exercise.weight ?? "",
+    status: exercise.status,
+    note: exercise.note ?? ""
   }
 }
 
 function getNextExerciseIndex(index: number, total: number) {
   return index + 1 < total ? index + 1 : null
-}
-
-function getExerciseSelectValue(name: string) {
-  if (!name) return ""
-  return EXERCISE_LIBRARY.some((exercise) => exercise.name === name) ? name : CUSTOM_EXERCISE_VALUE
 }
 
 function inferSessionStatus(
@@ -191,9 +181,7 @@ type SetRecordCardProps = {
   completedSets: number
   totalSets: number
   nextLabel: string | null
-  blockName: string
-  orderLabel: string
-  exercise: FlattenedExercise["exercise"]
+  exercise: SessionDetail["exercises"][number]
   state: ExerciseState
   setElapsedSeconds: number
   onRepsChange: (value: string) => void
@@ -204,157 +192,12 @@ type SetRecordCardProps = {
   className?: string
 }
 
-type AddExerciseCardProps = {
-  draft: NewExerciseDraft
-  addExerciseAction: (formData: FormData) => void | Promise<void>
-  onChange: (field: keyof NewExerciseDraft, value: string) => void
-  onExerciseNameChange: (value: string) => void
-  onBack: () => void
-}
-
-function AddExerciseCard({
-  draft,
-  addExerciseAction,
-  onChange,
-  onExerciseNameChange,
-  onBack
-}: AddExerciseCardProps) {
-  const selectedValue = getExerciseSelectValue(draft.name)
-
-  return (
-    <div className="deck-card-enter flex max-h-full flex-col overflow-hidden rounded-[1.45rem] border border-border/70 bg-card/95 p-4 shadow-[0_26px_80px_-48px_rgba(15,23,42,0.6)] backdrop-blur md:rounded-[2rem] md:p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">
-            Siguiente tarjeta
-          </p>
-          <h3 className="text-[1.75rem] uppercase leading-none md:text-4xl">Agregar ejercicio</h3>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Elige lo que vas a hacer ahora y lo metemos al mazo.
-          </p>
-        </div>
-        <Button type="button" variant="outline" className="shrink-0 rounded-full" onClick={onBack}>
-          Volver
-        </Button>
-      </div>
-
-      <div className="mt-4 grid gap-3">
-        <input type="hidden" name="newExerciseName" value={draft.name} />
-
-        <div className="grid gap-1.5">
-          <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-            Ejercicio
-          </label>
-          <select
-            value={selectedValue}
-            onChange={(event) => onExerciseNameChange(event.target.value)}
-            className="status-select h-11 rounded-2xl"
-            required
-          >
-            <option value="">Selecciona un ejercicio</option>
-            {Object.entries(EXERCISE_GROUPS).map(([groupName, groupExercises]) => (
-              <optgroup key={groupName} label={groupName}>
-                {groupExercises.map((exerciseName) => (
-                  <option key={exerciseName} value={exerciseName}>
-                    {exerciseName}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-            <option value={CUSTOM_EXERCISE_VALUE}>Otro</option>
-          </select>
-        </div>
-
-        {selectedValue === CUSTOM_EXERCISE_VALUE ? (
-          <div className="grid gap-1.5">
-            <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-              Nombre personalizado
-            </label>
-            <Input
-              value={draft.name}
-              onChange={(event) => onChange("name", event.target.value)}
-              placeholder="Ej. Farmer walk"
-              className="h-11 rounded-2xl"
-              required
-            />
-          </div>
-        ) : null}
-
-        <div className="grid gap-1.5">
-          <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-            Grupo muscular
-          </label>
-          <Input
-            name="newExerciseGroup"
-            value={draft.groupName}
-            onChange={(event) => onChange("groupName", event.target.value)}
-            placeholder="Grupo muscular"
-            className="h-11 rounded-2xl"
-          />
-        </div>
-
-        <div className="grid gap-1.5">
-          <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-            Variante / implemento
-          </label>
-          <select
-            name="newExerciseVariant"
-            value={draft.variant}
-            onChange={(event) => onChange("variant", event.target.value)}
-            className="status-select h-11 rounded-2xl"
-          >
-            <option value="">Sin especificar</option>
-            {VARIANT_OPTIONS.map((variant) => (
-              <option key={variant} value={variant}>
-                {variant}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          <Input
-            name="newExerciseSets"
-            type="number"
-            min="1"
-            placeholder="Sets"
-            value={draft.plannedSets}
-            onChange={(event) => onChange("plannedSets", event.target.value)}
-            className="h-11 rounded-2xl"
-          />
-          <Input
-            name="newExerciseReps"
-            placeholder="Reps / tiempo"
-            value={draft.plannedReps}
-            onChange={(event) => onChange("plannedReps", event.target.value)}
-            className="h-11 rounded-2xl"
-          />
-        </div>
-
-        <Textarea
-          name="newExerciseNotes"
-          value={draft.notes}
-          onChange={(event) => onChange("notes", event.target.value)}
-          placeholder="Notas rapidas"
-          className="min-h-[74px] rounded-2xl"
-        />
-      </div>
-
-      <Button type="submit" formAction={addExerciseAction} className="mt-auto min-h-11 rounded-full">
-        Agregar y seguir
-      </Button>
-    </div>
-  )
-}
-
 function SetRecordCard({
   sessionName,
   sessionStatus,
   completedSets,
   totalSets,
   nextLabel,
-  blockName,
-  orderLabel,
   exercise,
   state,
   setElapsedSeconds,
@@ -366,6 +209,8 @@ function SetRecordCard({
   className
 }: SetRecordCardProps) {
   const progress = totalSets === 0 ? 0 : Math.round((completedSets / totalSets) * 100)
+  const displayName = getDisplayName(exercise)
+  const displayGroup = getDisplayGroup(exercise)
 
   return (
     <div
@@ -376,15 +221,15 @@ function SetRecordCard({
     >
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline">{orderLabel}</Badge>
-          <Badge variant="secondary">{blockName}</Badge>
+          <Badge variant="outline">{exercise.orderIndex + 1}</Badge>
+          <Badge variant="secondary">{displayGroup}</Badge>
           <Badge variant="info">Registro</Badge>
         </div>
         <div>
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">Set cerrado</p>
-          <h3 className="text-[1.25rem] uppercase leading-none md:text-[1.9rem]">{exercise.name}</h3>
+          <h3 className="text-[1.25rem] uppercase leading-none md:text-[1.9rem]">{displayName}</h3>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {exercise.variant ? <Badge variant="secondary">{exercise.variant}</Badge> : null}
+            {exercise.libraryExercise?.variant ? <Badge variant="secondary">{exercise.libraryExercise.variant}</Badge> : null}
             {exercise.plannedSets ? <Badge variant="info">{state.setsCompleted}/{exercise.plannedSets} sets</Badge> : null}
             {exercise.plannedReps ? <Badge variant="warning">{exercise.plannedReps} reps objetivo</Badge> : null}
           </div>
@@ -397,7 +242,9 @@ function SetRecordCard({
             <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">Entreno</p>
             <p className="truncate text-sm font-semibold">{sessionName}</p>
           </div>
-          <Badge variant={getWorkoutSessionBadgeVariant(sessionStatus)}>{sessionStatus}</Badge>
+          <Badge variant={sessionStatus === "completed" ? "success" : sessionStatus === "in_progress" ? "info" : "outline"}>
+            {sessionStatus}
+          </Badge>
         </div>
         <div className="grid grid-cols-[1fr_auto] items-center gap-3 text-xs">
           <div className="h-2 overflow-hidden rounded-full bg-muted">
@@ -483,20 +330,16 @@ function SetRecordCard({
   )
 }
 
-export function SessionWorkoutFlow({ session, action, addExerciseAction }: SessionWorkoutFlowProps) {
-  const items = useMemo<FlattenedExercise[]>(() => {
-    let counter = 1
-    return session.blocks.flatMap((block) =>
-      block.exercises.map((exercise) => ({
-        blockId: block.id,
-        blockName: block.name,
-        orderLabel: `Paso ${counter++}`,
-        exercise
-      }))
-    )
-  }, [session.blocks])
+export function SessionWorkoutFlow({ session, action, addAction, exerciseGroups }: SessionWorkoutFlowProps) {
+  const router = useRouter()
+  const items = useMemo<ExerciseItem[]>(() => {
+    return session.exercises.map((exercise) => ({
+      orderLabel: `Paso ${exercise.orderIndex + 1}`,
+      exercise
+    }))
+  }, [session.exercises])
 
-  const initialStates = useMemo(() => items.map(getInitialState), [items])
+  const initialStates = useMemo(() => items.map((item) => getInitialState(item.exercise)), [items])
   const firstPendingIndex = initialStates.findIndex((item) => item.status !== "completed")
   const initialActiveIndex =
     firstPendingIndex === -1 ? Math.max(items.length - 1, 0) : firstPendingIndex
@@ -504,9 +347,7 @@ export function SessionWorkoutFlow({ session, action, addExerciseAction }: Sessi
 
   const [exerciseStates, setExerciseStates] = useState(initialStates)
   const [activeExerciseIndex, setActiveExerciseIndex] = useState(initialActiveIndex)
-  const [phase, setPhase] = useState<SessionPhase>(
-    initiallyComplete ? "complete" : "exercise"
-  )
+  const [phase, setPhase] = useState<SessionPhase>(initiallyComplete ? "complete" : "exerciseSetup")
   const [pendingAdvanceIndex, setPendingAdvanceIndex] = useState<number | null>(null)
   const [pendingRestPlan, setPendingRestPlan] = useState<PendingRestPlan | null>(null)
   const [restCompletesWorkout, setRestCompletesWorkout] = useState(false)
@@ -516,14 +357,6 @@ export function SessionWorkoutFlow({ session, action, addExerciseAction }: Sessi
   const [setElapsedSeconds, setSetElapsedSeconds] = useState(0)
   const [generalNotes, setGeneralNotes] = useState(session.generalNotes ?? "")
   const [panelOpen, setPanelOpen] = useState(false)
-  const [newExercise, setNewExercise] = useState<NewExerciseDraft>({
-    name: "",
-    groupName: "",
-    variant: "",
-    plannedSets: "3",
-    plannedReps: "10",
-    notes: ""
-  })
   const [sessionStatus, setSessionStatus] = useState<SessionDetail["status"]>(() =>
     inferSessionStatus(initialStates, session.status)
   )
@@ -532,6 +365,13 @@ export function SessionWorkoutFlow({ session, action, addExerciseAction }: Sessi
   >("unsupported")
   const [notificationHint, setNotificationHint] = useState("")
   const [restAlertMessage, setRestAlertMessage] = useState<string | null>(null)
+  const [showAddExercise, setShowAddExercise] = useState(false)
+  const [isAddingExercise, setIsAddingExercise] = useState(false)
+  const [exerciseSetup, setExerciseSetup] = useState<ExerciseSetup>(() => ({
+    plannedSets: items[initialActiveIndex]?.exercise.plannedSets ?? 3,
+    plannedReps: items[initialActiveIndex]?.exercise.plannedReps ?? "10",
+    weight: ""
+  }))
 
   const currentItem = items[activeExerciseIndex]
   const currentExerciseState = exerciseStates[activeExerciseIndex]
@@ -542,46 +382,20 @@ export function SessionWorkoutFlow({ session, action, addExerciseAction }: Sessi
     .slice(-3)
   const completedExercises = exerciseStates.filter((item) => item.status === "completed").length
   const totalPlannedSets = items.reduce(
-    (total, item) => total + Math.max(item.exercise.plannedSets ?? 1, 1),
+    (total, item, index) => {
+      const sets = index === activeExerciseIndex ? exerciseSetup.plannedSets : (item.exercise.plannedSets ?? 1)
+      return total + Math.max(sets, 1)
+    },
     0
   )
   const completedSets = exerciseStates.reduce(
     (total, state, index) => {
-      const plannedSets = Math.max(items[index]?.exercise.plannedSets ?? state.setsCompleted, 1)
-      return total + Math.min(state.setsCompleted, plannedSets)
+      const plannedSets = index === activeExerciseIndex ? exerciseSetup.plannedSets : (items[index]?.exercise.plannedSets ?? state.setsCompleted)
+      return total + Math.min(state.setsCompleted, Math.max(plannedSets, 1))
     },
     0
   )
   const allCompleted = items.length > 0 && completedExercises === items.length
-  const nextPreviewLabel =
-    pendingAdvanceIndex !== null ? items[pendingAdvanceIndex]?.exercise.name ?? null : null
-
-  function updateNewExercise(field: keyof NewExerciseDraft, value: string) {
-    setNewExercise((current) => ({ ...current, [field]: value }))
-  }
-
-  function updateNewExerciseName(value: string) {
-    const selectedExercise = EXERCISE_LIBRARY.find((exercise) => exercise.name === value)
-
-    if (value === CUSTOM_EXERCISE_VALUE) {
-      setNewExercise((current) => ({
-        ...current,
-        name: EXERCISE_LIBRARY.some((item) => item.name === current.name) ? "" : current.name
-      }))
-      return
-    }
-
-    if (!selectedExercise) {
-      updateNewExercise("name", value)
-      return
-    }
-
-    setNewExercise((current) => ({
-      ...current,
-      name: selectedExercise.name,
-      groupName: selectedExercise.groupName
-    }))
-  }
 
   useEffect(() => {
     const permission = getNotificationSupport()
@@ -590,20 +404,51 @@ export function SessionWorkoutFlow({ session, action, addExerciseAction }: Sessi
     if (permission === "unsupported") {
       setNotificationHint(
         isLikelyIos() && !isStandaloneWebApp()
-          ? "En iPhone, las notificaciones web requieren instalar la app en la pantalla de inicio. Mientras tanto usamos aviso dentro de la app."
-          : "Este navegador no permite notificaciones web aqui. Usamos aviso dentro de la app."
+          ? "En iPhone, las notificaciones web requieren instalar la app en la pantalla de inicio."
+          : "Este navegador no permite notificaciones web aqui."
       )
     }
   }, [])
 
   useEffect(() => {
+    if (!currentItem) return
+    setExerciseSetup({
+      plannedSets: currentItem.exercise.plannedSets ?? 3,
+      plannedReps: currentItem.exercise.plannedReps ?? "10",
+      weight: ""
+    })
+  }, [activeExerciseIndex, currentItem])
+
+  useEffect(() => {
     const inferred = inferSessionStatus(exerciseStates, session.status)
     setSessionStatus(inferred)
 
-    if (allCompleted && phase !== "rest" && phase !== "record" && phase !== "add_exercise") {
+    if (allCompleted && phase !== "rest" && phase !== "record" && phase !== "add_exercise" && phase !== "exerciseSetup") {
       setPhase("complete")
     }
   }, [allCompleted, exerciseStates, phase, session.status])
+
+  useEffect(() => {
+    const expectedLength = items.length
+    const currentLength = exerciseStates.length
+
+    if (expectedLength > currentLength) {
+      const newStates = Array.from({ length: expectedLength - currentLength }, () => ({
+        setsCompleted: 0,
+        reps: "",
+        weight: "",
+        status: "pending" as const,
+        note: ""
+      }))
+
+      setExerciseStates((prev) => [...prev, ...newStates])
+
+      if (phase === "complete") {
+        setActiveExerciseIndex(currentLength)
+        setPhase("exerciseSetup")
+      }
+    }
+  }, [items.length, phase, exerciseStates.length])
 
   useEffect(() => {
     if (phase !== "exercise") return
@@ -646,7 +491,7 @@ export function SessionWorkoutFlow({ session, action, addExerciseAction }: Sessi
     if (notificationPermission === "granted" && typeof window !== "undefined" && "Notification" in window) {
       const targetName =
         pendingAdvanceIndex !== null
-          ? items[pendingAdvanceIndex]?.exercise.name ?? "tu siguiente set"
+          ? items[pendingAdvanceIndex]?.exercise.customName || items[pendingAdvanceIndex]?.exercise.libraryExercise?.name || "tu siguiente set"
           : "tu cierre de sesion"
 
       try {
@@ -656,14 +501,14 @@ export function SessionWorkoutFlow({ session, action, addExerciseAction }: Sessi
           requireInteraction: false
         })
       } catch {
-        setNotificationHint("No pudimos emitir la notificacion del sistema. Dejamos activo el aviso dentro de la app.")
+        setNotificationHint("No pudimos emitir la notificacion del sistema.")
       }
     }
 
     setRestAlertMessage(
       pendingAdvanceIndex !== null
-        ? `Descanso terminado. Sigue con ${items[pendingAdvanceIndex]?.exercise.name ?? "tu siguiente set"}.`
-        : "Descanso terminado. Rutina lista para cerrar."
+        ? `Descanso terminado. Sigue con ${items[pendingAdvanceIndex]?.exercise.customName || items[pendingAdvanceIndex]?.exercise.libraryExercise?.name || "tu siguiente set"}.`
+        : "Descanso terminado. Sesion lista para cerrar."
     )
 
     if (restCompletesWorkout) {
@@ -676,14 +521,8 @@ export function SessionWorkoutFlow({ session, action, addExerciseAction }: Sessi
       setActiveExerciseIndex(pendingAdvanceIndex)
     }
 
-    setPhase("exercise")
-  }, [
-    items,
-    notificationPermission,
-    pendingAdvanceIndex,
-    restCompletesWorkout,
-    session.id
-  ])
+    setPhase("exerciseSetup")
+  }, [items, notificationPermission, pendingAdvanceIndex, restCompletesWorkout, session.id])
 
   useEffect(() => {
     if (phase !== "rest" || !restRunning) return
@@ -714,9 +553,7 @@ export function SessionWorkoutFlow({ session, action, addExerciseAction }: Sessi
     })
   }
 
-  function beginRest(
-    options: PendingRestPlan
-  ) {
+  function beginRest(options: PendingRestPlan) {
     setPendingRestPlan(null)
     setPendingAdvanceIndex(options.nextIndex)
     setRestCompletesWorkout(options.completesWorkout)
@@ -731,7 +568,7 @@ export function SessionWorkoutFlow({ session, action, addExerciseAction }: Sessi
     if (!currentItem || !currentExerciseState) return
 
     const nextSets = currentExerciseState.setsCompleted + 1
-    const targetSets = currentItem.exercise.plannedSets ?? 0
+    const targetSets = exerciseSetup.plannedSets
     const completedExercise = targetSets > 0 && nextSets >= targetSets
 
     updateExerciseState(activeExerciseIndex, {
@@ -777,7 +614,7 @@ export function SessionWorkoutFlow({ session, action, addExerciseAction }: Sessi
     updateExerciseState(activeExerciseIndex, {
       setsCompleted: Math.max(
         currentExerciseState.setsCompleted,
-        currentItem.exercise.plannedSets ?? currentExerciseState.setsCompleted
+        exerciseSetup.plannedSets
       ),
       status: "completed"
     })
@@ -791,9 +628,86 @@ export function SessionWorkoutFlow({ session, action, addExerciseAction }: Sessi
     })
   }
 
-  if (!currentItem || !currentExerciseState) {
-    return null
+  function handleStartExercise() {
+    updateExerciseState(activeExerciseIndex, {
+      status: "in_progress",
+      reps: exerciseSetup.plannedReps,
+      weight: exerciseSetup.weight
+    })
+    setPhase("exercise")
   }
+
+  function handleSkipSetup() {
+    updateExerciseState(activeExerciseIndex, { status: "in_progress" })
+    setPhase("exercise")
+  }
+
+  async function handleAddExerciseFromLibrary(groupName: string, exerciseName: string, exerciseId: string, defaultSets: number, defaultReps: string) {
+    if (isAddingExercise) return
+    setIsAddingExercise(true)
+    const formData = new FormData()
+    formData.set("exerciseData", JSON.stringify({
+      exerciseId,
+      customName: null,
+      groupName,
+      orderIndex: items.length,
+      plannedSets: defaultSets,
+      plannedReps: defaultReps
+    }))
+    try {
+      await addAction(formData)
+      router.refresh()
+      setShowAddExercise(false)
+    } finally {
+      setIsAddingExercise(false)
+    }
+  }
+
+  if (showAddExercise) {
+    return (
+      <div className="flex h-[calc(100svh-7.5rem)] flex-col gap-4 overflow-hidden md:h-[calc(100svh-10rem)]">
+        <div className="flex items-center gap-3">
+          <Button type="button" variant="ghost" size="icon" className="rounded-full shrink-0" onClick={() => setShowAddExercise(false)}>
+            <ArrowLeft className="size-5" />
+          </Button>
+          <div>
+            <h2 className="text-xl font-semibold">Agregar ejercicio</h2>
+            <p className="text-sm text-muted-foreground">Selecciona de la libreria</p>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto space-y-4">
+          {Object.entries(exerciseGroups).map(([groupName, exercises]) => (
+            <Card key={groupName} className="glass-card">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">{groupName}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-2">
+                  {exercises.map((exercise) => (
+                    <Button
+                      key={exercise.id}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-auto justify-start rounded-xl px-3 py-2 text-sm font-normal"
+                      onClick={() => handleAddExerciseFromLibrary(groupName, exercise.name, exercise.id, exercise.defaultSets, exercise.defaultReps)}
+                      disabled={isAddingExercise}
+                    >
+                      {exercise.name}
+                    </Button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  const displayName = getDisplayName(currentItem.exercise)
+  const displayGroup = getDisplayGroup(currentItem.exercise)
 
   return (
     <form action={action} className="flex h-[calc(100svh-7.5rem)] flex-col gap-4 overflow-hidden md:h-[calc(100svh-10rem)]">
@@ -814,11 +728,77 @@ export function SessionWorkoutFlow({ session, action, addExerciseAction }: Sessi
         {phase !== "complete" ? (
             <div className="relative min-h-[calc(100svh-12rem)] md:min-h-[72svh]">
               <div className="absolute inset-0 z-10">
-                {phase === "exercise" ? (
+                {phase === "exerciseSetup" ? (
+                  <div className="deck-card-enter flex max-h-full flex-col overflow-hidden rounded-[1.45rem] border border-border/70 bg-card/95 p-3 shadow-[0_26px_80px_-48px_rgba(15,23,42,0.6)] backdrop-blur md:rounded-[2rem] md:p-5">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="outline">{currentItem.exercise.orderIndex + 1}</Badge>
+                        <Badge variant="secondary">{displayGroup}</Badge>
+                        <Badge variant="info">Configurar</Badge>
+                      </div>
+                      <div>
+                        <h3 className="text-[1.25rem] uppercase leading-none md:text-[1.9rem]">{displayName}</h3>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="grid gap-1.5">
+                          <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Sets</label>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={exerciseSetup.plannedSets}
+                            onChange={(e) => setExerciseSetup((prev) => ({ ...prev, plannedSets: parseInt(e.target.value) || 1 }))}
+                            className="h-10 rounded-xl text-lg"
+                          />
+                        </div>
+                        <div className="grid gap-1.5">
+                          <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Reps objetivo</label>
+                          <Input
+                            value={exerciseSetup.plannedReps}
+                            onChange={(e) => setExerciseSetup((prev) => ({ ...prev, plannedReps: e.target.value }))}
+                            placeholder="10"
+                            className="h-10 rounded-xl text-lg"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid gap-1.5">
+                        <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Peso</label>
+                        <div className="relative">
+                          <Dumbbell className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            value={exerciseSetup.weight}
+                            onChange={(e) => setExerciseSetup((prev) => ({ ...prev, weight: e.target.value }))}
+                            placeholder="20 kg"
+                            className="h-10 rounded-xl pl-9 text-lg"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-6 grid grid-cols-2 gap-2">
+                      <Button type="button" variant="outline" className="min-h-10 rounded-full" onClick={handleSkipSetup}>
+                        Saltar
+                      </Button>
+                      <Button type="button" className="min-h-10 rounded-full" onClick={handleStartExercise}>
+                        Empezar
+                        <ArrowRight className="size-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : phase === "exercise" ? (
                   <ExerciseActionCard
-                    blockName={currentItem.blockName}
+                    blockName={displayGroup}
                     orderLabel={currentItem.orderLabel}
-                    exercise={currentItem.exercise}
+                    exercise={{
+                      id: currentItem.exercise.id,
+                      name: displayName,
+                      variant: currentItem.exercise.libraryExercise?.variant || null,
+                      plannedSets: exerciseSetup.plannedSets,
+                      plannedReps: exerciseSetup.plannedReps,
+                      notes: currentItem.exercise.note
+                    }}
                     status={currentExerciseState.status}
                     setsCompleted={currentExerciseState.setsCompleted}
                     setElapsedSeconds={setElapsedSeconds}
@@ -828,15 +808,13 @@ export function SessionWorkoutFlow({ session, action, addExerciseAction }: Sessi
                   />
                 ) : phase === "record" ? (
                   <SetRecordCard
-                    sessionName={session.dayName}
+                    sessionName={session.date}
                     sessionStatus={sessionStatus}
                     completedSets={completedSets}
                     totalSets={totalPlannedSets}
                     nextLabel={pendingRestPlan?.nextIndex !== null && pendingRestPlan?.nextIndex !== undefined
-                      ? items[pendingRestPlan.nextIndex]?.exercise.name ?? null
+                      ? items[pendingRestPlan.nextIndex]?.exercise.customName || items[pendingRestPlan.nextIndex]?.exercise.libraryExercise?.name || null
                       : null}
-                    blockName={currentItem.blockName}
-                    orderLabel={currentItem.orderLabel}
                     exercise={currentItem.exercise}
                     state={currentExerciseState}
                     setElapsedSeconds={setElapsedSeconds}
@@ -847,21 +825,13 @@ export function SessionWorkoutFlow({ session, action, addExerciseAction }: Sessi
                     onBack={handleBackFromRecord}
                     className="min-h-0"
                   />
-                ) : phase === "add_exercise" ? (
-                  <AddExerciseCard
-                    draft={newExercise}
-                    addExerciseAction={addExerciseAction}
-                    onChange={updateNewExercise}
-                    onExerciseNameChange={updateNewExerciseName}
-                    onBack={() => setPhase("complete")}
-                  />
                 ) : (
                   <div className="deck-card-enter h-full min-h-0">
                     <RestTimerCard
                       duration={restDuration}
                       remaining={restRemaining}
                       running={restRunning}
-                      nextLabel={nextPreviewLabel}
+                      nextLabel={pendingAdvanceIndex !== null ? items[pendingAdvanceIndex]?.exercise.customName || items[pendingAdvanceIndex]?.exercise.libraryExercise?.name || null : null}
                       notificationPermission={notificationPermission}
                       notificationHint={notificationHint}
                       onEnableNotifications={requestNotifications}
@@ -920,7 +890,7 @@ export function SessionWorkoutFlow({ session, action, addExerciseAction }: Sessi
                     <div className="flex items-start gap-2.5">
                       <CheckCircle2 className="mt-0.5 size-4 text-primary" />
                       <div>
-                        <p className="text-sm font-semibold">Cerraste la rutina completa.</p>
+                        <p className="text-sm font-semibold">Cerraste la sesion completa.</p>
                         <p className="mt-1 text-xs text-muted-foreground">
                           Guarda la sesion para conservar series, reps, peso y notas de este entreno.
                         </p>
@@ -932,27 +902,29 @@ export function SessionWorkoutFlow({ session, action, addExerciseAction }: Sessi
                     <Button
                       type="button"
                       variant="outline"
-                      className="min-h-10 rounded-full px-5 sm:col-span-3"
-                      onClick={() => setPhase("add_exercise")}
+                      className="min-h-10 rounded-full px-5"
+                      onClick={() => setShowAddExercise(true)}
+                      disabled={isAddingExercise}
                     >
-                      Agregar otro ejercicio
+                      <Plus className="mr-2 size-4" />
+                      Agregar ejercicio
                     </Button>
                     <Button
                       type="submit"
                       name="afterSave"
                       value="home"
-                      className="min-h-10 rounded-full px-5 sm:col-span-3"
+                      className="min-h-10 rounded-full px-5 sm:col-span-2"
                     >
                       Guardar y volver al inicio
                     </Button>
                     <Button
                       type="submit"
                       name="afterSave"
-                      value="history"
+                      value="summary"
                       variant="outline"
                       className="min-h-10 rounded-full px-5"
                     >
-                      Ver historial
+                      Ver resumen de sesion
                     </Button>
                     <Button
                       type="submit"
@@ -969,6 +941,30 @@ export function SessionWorkoutFlow({ session, action, addExerciseAction }: Sessi
             </Card>
           )}
       </div>
+
+      {phase !== "complete" && !showAddExercise ? (
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="flex-1 rounded-full"
+            onClick={() => setShowAddExercise(true)}
+            disabled={isAddingExercise}
+          >
+            <Plus className="mr-2 size-4" />
+            Agregar ejercicio
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="rounded-full"
+            onClick={() => setPanelOpen(true)}
+          >
+            <NotebookPen className="size-5" />
+          </Button>
+        </div>
+      ) : null}
 
       {panelOpen ? (
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-foreground/35 px-3 pb-24 pt-20 backdrop-blur-[2px]">
@@ -1022,13 +1018,13 @@ export function SessionWorkoutFlow({ session, action, addExerciseAction }: Sessi
                         key={item.exercise.id}
                         className="rounded-2xl border border-border/60 bg-card/70 px-3 py-3 text-sm"
                       >
-                        <p className="font-semibold">{item.exercise.name}</p>
-                        <p className="text-muted-foreground">{item.blockName}</p>
+                        <p className="font-semibold">{getDisplayName(item.exercise)}</p>
+                        <p className="text-muted-foreground">{getDisplayGroup(item.exercise)}</p>
                       </div>
                     ))
                   ) : (
                     <p className="text-sm text-muted-foreground">
-                      Tus ejercicios cerrados apareceran aqui para que sientas el avance del mazo.
+                      Tus ejercicios cerrados apareceran aqui.
                     </p>
                   )}
                 </div>
@@ -1046,13 +1042,13 @@ export function SessionWorkoutFlow({ session, action, addExerciseAction }: Sessi
                         className="rounded-2xl border border-border/60 bg-card/70 px-3 py-3 text-sm"
                       >
                         <p className="font-semibold">
-                          {index + 1}. {item.exercise.name}
+                          {index + 1}. {getDisplayName(item.exercise)}
                         </p>
-                        <p className="text-muted-foreground">{item.blockName}</p>
+                        <p className="text-muted-foreground">{getDisplayGroup(item.exercise)}</p>
                       </div>
                     ))
                   ) : (
-                    <p className="text-sm text-muted-foreground">Estas entrando al tramo final de la rutina.</p>
+                    <p className="text-sm text-muted-foreground">Estas entrando al tramo final de la sesion.</p>
                   )}
                 </div>
               </div>

@@ -1,15 +1,20 @@
 import Link from "next/link"
 
-import { createSessionAction } from "@/app/actions"
 import { Badge } from "@/components/ui/badge"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { getCalendarStatusBadgeVariant } from "@/lib/status-ui"
 import type { WeeklyCalendarDay } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 type WeeklyCalendarCardProps = {
   week: WeeklyCalendarDay[]
+}
+
+function getDayStatusVariant(status: WeeklyCalendarDay["sessionStatus"]) {
+  if (!status) return "outline"
+  if (status === "completed") return "success"
+  if (status === "in_progress") return "info"
+  return "warning"
 }
 
 export function WeeklyCalendarCard({ week }: WeeklyCalendarCardProps) {
@@ -35,22 +40,22 @@ export function WeeklyCalendarCard({ week }: WeeklyCalendarCardProps) {
                 </p>
                 <p className="mt-2 font-display text-4xl leading-none">{day.dateLabel}</p>
               </div>
-              <Badge variant={getCalendarStatusBadgeVariant(day.status)}>
-                {day.status === "recovery" ? "Recovery" : day.status}
+              <Badge variant={getDayStatusVariant(day.sessionStatus)}>
+                {day.sessionStatus || "libre"}
               </Badge>
             </div>
 
             <div className="mt-4 flex-1">
               <p className="text-sm font-semibold">
-                {day.assignedDayName ?? "Recuperacion"}
+                {day.sessionId ? "Sesion registrada" : "Recuperacion"}
               </p>
               <p className="mt-2 text-sm text-muted-foreground">
                 {day.isToday
                   ? "Hoy toca entrenar o cerrar descanso activo."
-                  : day.status === "completed"
+                  : day.sessionStatus === "completed"
                     ? "Sesion completada en esta fecha."
-                    : day.assignedDayName
-                      ? "Dia asignado dentro del ciclo semanal."
+                    : day.sessionId
+                      ? "Sesion en progreso."
                       : "Dia libre para movilidad o descanso."}
               </p>
             </div>
@@ -62,13 +67,6 @@ export function WeeklyCalendarCard({ week }: WeeklyCalendarCardProps) {
               >
                 Abrir sesion
               </Link>
-            ) : day.assignedDayId ? (
-              <form action={createSessionAction} className="mt-4">
-                <input type="hidden" name="dayId" value={day.assignedDayId} />
-                <Button type="submit" size="sm" className="w-full rounded-full">
-                  Crear sesion
-                </Button>
-              </form>
             ) : (
               <div className="mt-4 rounded-full border border-dashed border-border/70 px-4 py-2 text-center text-xs font-medium text-muted-foreground">
                 Sin entreno

@@ -5,8 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "postinstall": "prisma generate",
-    "prebuild": "prisma migrate deploy",
+    "prebuild": "prisma generate && npx prisma db push",
     "build": "next build",
+    "postbuild": "npx tsx scripts/seed.ts",
     "start": "next start",
     "lint": "next lint",
     "test": "node --test tests/*.test.ts",

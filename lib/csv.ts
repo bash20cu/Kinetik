@@ -1,4 +1,15 @@
-import type { CsvExerciseRow } from "@/lib/types";
+export type CsvExerciseRow = {
+  day_name: string;
+  day_order: number;
+  block_name: string;
+  block_order: number;
+  exercise_name: string;
+  group_name: string;
+  variant: string;
+  planned_sets: number | null;
+  planned_reps: string;
+  notes: string;
+};
 
 const REQUIRED_COLUMNS = [
   "day_name",

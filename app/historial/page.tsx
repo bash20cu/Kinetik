@@ -10,7 +10,6 @@ import { cn } from "@/lib/utils"
 import { requireUser } from "@/lib/auth"
 import { getSessions, getUnreadAlerts } from "@/lib/data"
 import { isDatabaseConfigured } from "@/lib/env"
-import { getWorkoutSessionBadgeVariant } from "@/lib/status-ui"
 
 export default async function HistoryPage() {
   if (!isDatabaseConfigured()) {
@@ -39,7 +38,7 @@ export default async function HistoryPage() {
           <CardHeader>
             <CardTitle>Aun no tienes sesiones</CardTitle>
             <CardDescription className="text-base">
-              Inicia un dia de entrenamiento desde el dashboard para generar historial.
+              Crea una sesion desde el inicio para empezar a registrar tu progreso.
             </CardDescription>
           </CardHeader>
         ) : (
@@ -48,8 +47,7 @@ export default async function HistoryPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Fecha</TableHead>
-                  <TableHead>Dia</TableHead>
-                  <TableHead>Plan</TableHead>
+                  <TableHead>Ejercicios</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Accion</TableHead>
                 </TableRow>
@@ -58,18 +56,35 @@ export default async function HistoryPage() {
                 {sessions.map((session) => (
                   <TableRow key={session.id}>
                     <TableCell>{session.date}</TableCell>
-                    <TableCell className="font-medium">{session.dayName}</TableCell>
-                    <TableCell>{session.planName}</TableCell>
+                    <TableCell className="font-medium">Sesion #{session.id.slice(0, 4)}</TableCell>
                     <TableCell>
-                      <Badge variant={getWorkoutSessionBadgeVariant(session.status)}>{session.status}</Badge>
+                      <Badge variant={session.status === "completed" ? "success" : session.status === "in_progress" ? "info" : session.status === "discarded" ? "outline" : "warning"}>
+                        {session.status}
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Link
-                        href={`/sesion/${session.id}`}
-                        className={cn(buttonVariants({ variant: "outline", size: "sm" }), "rounded-full")}
-                      >
-                        Abrir
-                      </Link>
+                      <div className="flex items-center justify-end gap-2">
+                        <Link
+                          href={`/sesion/${session.id}`}
+                          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "rounded-full")}
+                        >
+                          Abrir
+                        </Link>
+                        <Link
+                          href={`/sesion/${session.id}/resumen`}
+                          className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "rounded-full")}
+                        >
+                          Resumen
+                        </Link>
+                        {session.status === "completed" && (
+                          <Link
+                            href={`/sesion/${session.id}/guardar-como-rutina`}
+                            className={cn(buttonVariants({ size: "sm" }), "rounded-full")}
+                          >
+                            Guardar rutina
+                          </Link>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -78,6 +93,15 @@ export default async function HistoryPage() {
           </CardContent>
         )}
       </Card>
+
+      <div className="mt-6">
+        <Link
+          href="/"
+          className={cn(buttonVariants({ variant: "outline" }), "w-full rounded-full")}
+        >
+          ← Volver al inicio
+        </Link>
+      </div>
     </AppShell>
   )
 }

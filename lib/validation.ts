@@ -1,38 +1,5 @@
-import { ExerciseLogStatus, WorkoutSessionStatus } from "@prisma/client";
-
-type PlanPayload = {
-  days?: Array<{
-    name?: string;
-    dayOrder?: number;
-    blocks?: Array<{
-      name?: string;
-      blockOrder?: number;
-      exercises?: Array<{
-        name?: string;
-        groupName?: string;
-        variant?: string | null;
-        plannedSets?: number | null;
-        plannedReps?: string | null;
-        notes?: string | null;
-      }>;
-    }>;
-  }>;
-};
-
-type QuickWorkoutPayload = {
-  name?: string;
-  exercises?: Array<{
-    name?: string;
-    groupName?: string;
-    variant?: string | null;
-    plannedSets?: number | null;
-    plannedReps?: string | null;
-    notes?: string | null;
-  }>;
-};
-
-const SESSION_STATUSES = new Set<WorkoutSessionStatus>(Object.values(WorkoutSessionStatus));
-const EXERCISE_STATUSES = new Set<ExerciseLogStatus>(Object.values(ExerciseLogStatus));
+const SESSION_STATUSES = ["planned", "in_progress", "completed", "discarded"] as const;
+const EXERCISE_STATUSES = ["pending", "in_progress", "completed", "skipped"] as const;
 
 export function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
@@ -89,70 +56,21 @@ export function parseOptionalNonNegativeInteger(value: FormDataEntryValue | null
 }
 
 export function parseSessionStatus(value: FormDataEntryValue | null) {
-  const status = String(value ?? "").trim() as WorkoutSessionStatus;
+  const status = String(value ?? "").trim();
 
-  if (!SESSION_STATUSES.has(status)) {
+  if (!SESSION_STATUSES.includes(status as typeof SESSION_STATUSES[number])) {
     throw new Error("El estado general de la sesion no es valido.");
   }
 
-  return status;
+  return status as typeof SESSION_STATUSES[number];
 }
 
 export function parseExerciseStatus(value: FormDataEntryValue | null) {
-  const status = String(value ?? "").trim() as ExerciseLogStatus;
+  const status = String(value ?? "").trim();
 
-  if (!EXERCISE_STATUSES.has(status)) {
+  if (!EXERCISE_STATUSES.includes(status as typeof EXERCISE_STATUSES[number])) {
     throw new Error("El estado del ejercicio no es valido.");
   }
 
-  return status;
-}
-
-export function parsePlanPayload(payload: string) {
-  let parsed: PlanPayload;
-
-  try {
-    parsed = JSON.parse(payload) as PlanPayload;
-  } catch {
-    throw new Error("No pudimos interpretar la rutina enviada.");
-  }
-
-  return (parsed.days ?? []).map((day, dayIndex) => ({
-    name: day.name ?? `Dia ${dayIndex + 1}`,
-    dayOrder: day.dayOrder ?? dayIndex + 1,
-    blocks: (day.blocks ?? []).map((block, blockIndex) => ({
-      name: block.name ?? `Bloque ${blockIndex + 1}`,
-      blockOrder: block.blockOrder ?? blockIndex + 1,
-      exercises: (block.exercises ?? []).map((exercise) => ({
-        name: exercise.name ?? "",
-        groupName: exercise.groupName ?? "",
-        variant: exercise.variant ?? null,
-        plannedSets: exercise.plannedSets ?? null,
-        plannedReps: exercise.plannedReps ?? null,
-        notes: exercise.notes ?? null
-      }))
-    }))
-  }));
-}
-
-export function parseQuickWorkoutPayload(payload: string) {
-  let parsed: QuickWorkoutPayload;
-
-  try {
-    parsed = JSON.parse(payload) as QuickWorkoutPayload;
-  } catch {
-    throw new Error("No pudimos interpretar el entrenamiento libre enviado.");
-  }
-
-  return {
-    name: parsed.name?.trim() || "",
-    exercises: (parsed.exercises ?? []).map((exercise) => ({
-      name: exercise.name ?? "",
-      groupName: exercise.groupName ?? "",
-      variant: exercise.variant ?? null,
-      plannedSets: exercise.plannedSets ?? null,
-      plannedReps: exercise.plannedReps ?? null,
-      notes: exercise.notes ?? null
-    }))
-  };
+  return status as typeof EXERCISE_STATUSES[number];
 }

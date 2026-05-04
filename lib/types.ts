@@ -9,7 +9,7 @@ export type ManagedUser = {
   email: string;
   createdAt: string;
   sessionCount: number;
-  planCount: number;
+  templateCount: number;
 };
 
 export type InAppAlert = {
@@ -21,99 +21,103 @@ export type InAppAlert = {
   createdAt: string;
 };
 
-export type Exercise = {
+export type ExerciseLibrary = {
   id: string;
-  blockId: string;
   name: string;
   groupName: string;
-  variant: string | null;
-  plannedSets: number | null;
-  plannedReps: string | null;
+  defaultSets: number | null;
+  defaultReps: string | null;
+  defaultRest: number | null;
   notes: string | null;
+  variant: string | null;
 };
 
-export type RoutineBlock = {
-  id: string;
-  name: string;
-  order: number;
-  exercises: Exercise[];
-};
-
-export type RoutineDay = {
-  id: string;
-  name: string;
-  order: number;
-  blocks: RoutineBlock[];
-};
-
-export type RoutinePlan = {
+export type SessionLog = {
   id: string;
   userId: string;
-  name: string;
-  activeFrom: string;
-  status: "active" | "archived";
-  days: RoutineDay[];
-};
-
-export type RoutinePlanSummary = {
-  id: string;
-  userId: string;
-  name: string;
-  activeFrom: string;
-  status: "active" | "archived";
-  dayCount: number;
-  exerciseCount: number;
-  sessionCount: number;
-};
-
-export type WorkoutSession = {
-  id: string;
-  userId: string;
-  planId: string;
-  dayId: string;
   date: string;
-  status: "planned" | "in_progress" | "completed";
+  durationSeconds: number | null;
+  status: "planned" | "in_progress" | "completed" | "discarded";
   generalNotes: string | null;
-  dayName: string;
-  planName: string;
-};
-
-export type WorkoutSuggestion = {
-  dayId: string;
-  dayName: string;
-  planName: string;
-};
-
-export type FreeWorkoutTemplate = {
-  planId: string;
-  dayId: string;
-  name: string;
-  exerciseCount: number;
   createdAt: string;
 };
 
-export type ExerciseLog = {
+export type SessionExercise = {
   id: string;
   sessionId: string;
-  exerciseId: string;
-  setsCompleted: number | null;
+  exerciseId: string | null;
+  customName: string | null;
+  groupName: string;
+  orderIndex: number;
+  plannedSets: number | null;
+  plannedReps: string | null;
+  actualSets: number | null;
   reps: string | null;
   weight: string | null;
   status: "pending" | "in_progress" | "completed" | "skipped";
   note: string | null;
 };
 
-export type SessionExercise = Exercise & {
-  log: ExerciseLog | null;
+export type SessionDetail = SessionLog & {
+  exercises: Array<{
+    id: string;
+    exerciseId: string | null;
+    customName: string | null;
+    groupName: string;
+    orderIndex: number;
+    plannedSets: number | null;
+    plannedReps: string | null;
+    actualSets: number | null;
+    reps: string | null;
+    weight: string | null;
+    status: "pending" | "in_progress" | "completed" | "skipped";
+    note: string | null;
+    libraryExercise: {
+      id: string;
+      name: string;
+      groupName: string;
+      variant: string | null;
+    } | null;
+  }>;
 };
 
-export type SessionDetail = WorkoutSession & {
-  blocks: Array<{
+export type RoutineTemplate = {
+  id: string;
+  userId: string;
+  name: string;
+  status: "active" | "archived";
+  isFavorite: boolean;
+  createdAt: string;
+  exercises: RoutineTemplateExercise[];
+};
+
+export type RoutineTemplateSummary = {
+  id: string;
+  userId: string;
+  name: string;
+  status: "active" | "archived";
+  isFavorite: boolean;
+  createdAt: string;
+  exerciseCount: number;
+};
+
+export type RoutineTemplateExercise = {
+  id: string;
+  templateId: string;
+  exerciseId: string | null;
+  customName: string | null;
+  groupName: string;
+  orderIndex: number;
+  plannedSets: number | null;
+  plannedReps: string | null;
+  notes: string | null;
+  variant: string | null;
+  libraryExercise: {
     id: string;
     name: string;
-    order: number;
-    exercises: SessionExercise[];
-  }>;
+    groupName: string;
+    variant: string | null;
+  } | null;
 };
 
 export type PlanImport = {
@@ -125,41 +129,21 @@ export type PlanImport = {
   createdAt: string;
 };
 
-export type DashboardData = {
-  user: User;
-  alerts: InAppAlert[];
-  activePlan: RoutinePlan | null;
-  latestSession: WorkoutSession | null;
-};
-
 export type WeeklyCalendarDay = {
   date: string;
   dateLabel: string;
   weekdayLabel: string;
   isToday: boolean;
-  assignedDayId: string | null;
-  assignedDayName: string | null;
-  status: "today" | "planned" | "in_progress" | "completed" | "recovery";
   sessionId: string | null;
+  sessionStatus: SessionLog["status"] | null;
+  dayName: string | null;
 };
 
-export type HomeDashboardData = DashboardData & {
+export type HomeDashboardData = {
+  user: User;
+  alerts: InAppAlert[];
+  recentTemplates: RoutineTemplateSummary[];
   week: WeeklyCalendarDay[];
-  todaysAssignment: WeeklyCalendarDay | null;
-  openSession: WorkoutSession | null;
-  suggestedWorkout: WorkoutSuggestion | null;
-  freeWorkoutTemplates: FreeWorkoutTemplate[];
-};
-
-export type CsvExerciseRow = {
-  day_name: string;
-  day_order: number;
-  block_name: string;
-  block_order: number;
-  exercise_name: string;
-  group_name: string;
-  variant: string;
-  planned_sets: number | null;
-  planned_reps: string;
-  notes: string;
+  latestSession: SessionLog | null;
+  openSession: SessionLog | null;
 };
