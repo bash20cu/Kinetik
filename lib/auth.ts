@@ -11,15 +11,17 @@ import { requireEmail, requirePassword } from "@/lib/validation";
 const COOKIE_NAME = "kinetik_session";
 
 export class AuthenticationError extends Error {}
+export class AuthorizationError extends Error {}
 
 function hashToken(token: string) {
   return createHash("sha256").update(`${token}:${getSessionSecret()}`).digest("hex");
 }
 
-function toUser(user: { id: string; email: string; createdAt: Date }): User {
+function toUser(user: { id: string; email: string; role: string; createdAt: Date }): User {
   return {
     id: user.id,
     email: user.email,
+    role: user.role as "admin" | "user",
     createdAt: user.createdAt.toISOString()
   };
 }
@@ -61,6 +63,16 @@ export async function requireUser() {
   return user;
 }
 
+export async function requireAdmin() {
+  const user = await requireUser();
+
+  if (user.role !== "admin") {
+    redirect("/");
+  }
+
+  return user;
+}
+
 export async function signInWithPassword(email: string, password: string) {
   const normalizedEmail = requireEmail(email);
   const normalizedPassword = requirePassword(password);
@@ -93,7 +105,7 @@ export async function signInWithPassword(email: string, password: string) {
   });
 }
 
-export async function provisionUser(email: string, password: string) {
+export async function provisionUser(email: string, password: string, role: "admin" | "user" = "user") {
   const normalizedEmail = requireEmail(email);
   const normalizedPassword = requirePassword(password);
 
@@ -102,18 +114,20 @@ export async function provisionUser(email: string, password: string) {
       email: normalizedEmail
     },
     update: {
-      passwordHash: hashPassword(normalizedPassword)
+      passwordHash: hashPassword(normalizedPassword),
+      role
     },
     create: {
       email: normalizedEmail,
-      passwordHash: hashPassword(normalizedPassword)
+      passwordHash: hashPassword(normalizedPassword),
+      role
     }
   });
 }
 
-export async function updateProvisionedUser(userId: string, input: { email: string; password?: string | null }) {
+export async function updateProvisionedUser(userId: string, input: { email: string; password?: string | null; role?: "admin" | "user" }) {
   const normalizedEmail = requireEmail(input.email);
-  const nextPassword = input.password?.trim();
+  const normalizedPassword = input.password?.trim();
 
   return prisma.user.update({
     where: {
@@ -121,12 +135,47 @@ export async function updateProvisionedUser(userId: string, input: { email: stri
     },
     data: {
       email: normalizedEmail,
-      ...(nextPassword ? { passwordHash: hashPassword(nextPassword) } : {})
+      ...(normalizedPassword ? { passwordHash: hashPassword(normalizedPassword) } : {}),
+      ...(input.role ? { role: input.role } : {})
     }
   });
 }
 
+export async function changePassword(userId: string, currentPassword: string, newPassword: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId }
+  });
+
+  if (!user?.passwordHash || !verifyPassword(currentPassword, user.passwordHash)) {
+    throw new AuthenticationError("La contrasena actual es incorrecta.");
+  }
+
+  await invalidateAllSessions(userId);
+
+  return prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash: hashPassword(newPassword) }
+  });
+}
+
+export async function resetUserPassword(userId: string, newPassword: string) {
+  await invalidateAllSessions(userId);
+
+  return prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash: hashPassword(newPassword) }
+  });
+}
+
+export async function invalidateAllSessions(userId: string) {
+  await prisma.userSession.deleteMany({
+    where: { userId }
+  });
+}
+
 export async function deleteProvisionedUser(userId: string) {
+  await invalidateAllSessions(userId);
+
   return prisma.user.delete({
     where: {
       id: userId

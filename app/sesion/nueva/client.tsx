@@ -22,7 +22,7 @@ type SelectedExercise = {
 }
 
 type SessionCreationPageProps = {
-  user: { id: string; email: string; createdAt: string }
+  user: { id: string; email: string; role: "admin" | "user"; createdAt: string }
   alerts: InAppAlert[]
   exerciseGroups: Record<string, { name: string; groupName: string; id?: string; defaultSets: number; defaultReps: string }[]>
 }

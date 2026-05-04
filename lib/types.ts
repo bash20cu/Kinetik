@@ -1,12 +1,14 @@
 export type User = {
   id: string;
   email: string;
+  role: "admin" | "user";
   createdAt: string;
 };
 
-export type ManagedUser = {
+export type AdminUser = {
   id: string;
   email: string;
+  role: "admin" | "user";
   createdAt: string;
   sessionCount: number;
   templateCount: number;

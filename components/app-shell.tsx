@@ -1,10 +1,11 @@
-import { Bell, Dumbbell, LogOut } from "lucide-react"
+import { Bell, Dumbbell } from "lucide-react"
 import { ReactNode } from "react"
 
-import { logoutAction, markAlertReadAction } from "@/app/actions"
+import { markAlertReadAction } from "@/app/actions"
 import { MobileShellControls } from "@/components/mobile-shell-controls"
 import { ModeToggle } from "@/components/mode-toggle"
 import { NavLink } from "@/components/nav-link"
+import { UserMenu } from "@/components/user-menu"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -55,7 +56,7 @@ export function AppShell({ user, alerts = [], children }: AppShellProps) {
               </p>
             </div>
           </div>
-            <MobileShellControls alerts={alerts} />
+            <MobileShellControls alerts={alerts} user={user} />
           </div>
 
           <nav
@@ -63,10 +64,10 @@ export function AppShell({ user, alerts = [], children }: AppShellProps) {
             aria-label="Navegacion principal"
           >
             <NavLink href="/" label="Hoy" />
-            <NavLink href="/entrenar/libre" label="Libre" />
-            <NavLink href="/rutina" label="Rutina" />
             <NavLink href="/historial" label="Historial" />
-            <NavLink href="/plan/importar" label="Importar plan" />
+            {user.role === "admin" && (
+              <NavLink href="/admin/usuarios" label="Admin" />
+            )}
           </nav>
 
           <div className="hidden flex-col gap-2 lg:min-w-[340px] lg:items-end md:flex">
@@ -123,20 +124,7 @@ export function AppShell({ user, alerts = [], children }: AppShellProps) {
               </details>
             </div>
 
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <div className="rounded-2xl border border-border/70 bg-card/75 px-3 py-1.5 text-right">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  Cuenta activa
-                </p>
-                <p className="max-w-[220px] truncate text-sm font-medium">{user.email}</p>
-              </div>
-              <form action={logoutAction}>
-                <Button type="submit" variant="outline" size="sm">
-                  <LogOut className="size-4" />
-                  Cerrar sesion
-                </Button>
-              </form>
-            </div>
+            <UserMenu user={user} />
           </div>
         </div>
       </header>

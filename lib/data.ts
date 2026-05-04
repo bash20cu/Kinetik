@@ -1,10 +1,10 @@
 import { addDays, formatDate, startOfWeek, today, toDateString } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import type {
+  AdminUser,
   ExerciseLibrary,
   HomeDashboardData,
   InAppAlert,
-  ManagedUser,
   RoutineTemplate,
   RoutineTemplateSummary,
   SessionDetail,
@@ -518,6 +518,7 @@ export async function getHomeDashboardData(userId: string): Promise<HomeDashboar
     user: {
       id: user.id,
       email: user.email,
+      role: user.role as "admin" | "user",
       createdAt: user.createdAt.toISOString()
     },
     alerts,
@@ -528,7 +529,7 @@ export async function getHomeDashboardData(userId: string): Promise<HomeDashboar
   };
 }
 
-export async function getManagedUsers(): Promise<ManagedUser[]> {
+export async function getManagedUsers(): Promise<AdminUser[]> {
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "asc" },
     include: {
@@ -544,6 +545,7 @@ export async function getManagedUsers(): Promise<ManagedUser[]> {
   return users.map((user) => ({
     id: user.id,
     email: user.email,
+    role: user.role as "admin" | "user",
     createdAt: user.createdAt.toISOString(),
     sessionCount: user._count.sessionLogs,
     templateCount: user._count.templates

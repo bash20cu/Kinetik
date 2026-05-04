@@ -6,9 +6,12 @@ import { headers } from "next/headers";
 
 import {
   AuthenticationError,
+  changePassword,
   deleteProvisionedUser,
   provisionUser,
   requireUser,
+  requireAdmin,
+  resetUserPassword,
   signInWithPassword,
   signOut,
   updateProvisionedUser
@@ -211,30 +214,33 @@ export async function toggleTemplateFavoriteAction(formData: FormData) {
 }
 
 export async function createManagedUserAction(formData: FormData) {
-  await requireUser();
+  await requireAdmin();
   const email = String(formData.get("email") ?? "");
   const password = requirePassword(String(formData.get("password") ?? ""));
+  const role = String(formData.get("role") ?? "user") as "admin" | "user";
 
-  await provisionUser(email, password);
+  await provisionUser(email, password, role);
   revalidatePath("/admin/usuarios");
 }
 
 export async function updateManagedUserAction(formData: FormData) {
-  await requireUser();
+  await requireAdmin();
   const userId = requireId(formData.get("userId"), "No encontramos el usuario.");
   const email = String(formData.get("email") ?? "");
   const password = String(formData.get("password") ?? "");
+  const role = String(formData.get("role") ?? "user") as "admin" | "user";
 
   await updateProvisionedUser(userId, {
     email,
-    password
+    password: password || undefined,
+    role
   });
 
   revalidatePath("/admin/usuarios");
 }
 
 export async function deleteManagedUserAction(formData: FormData) {
-  const currentUser = await requireUser();
+  const currentUser = await requireAdmin();
   const userId = requireId(formData.get("userId"), "No encontramos el usuario.");
 
   if (userId === currentUser.id) {
@@ -243,4 +249,42 @@ export async function deleteManagedUserAction(formData: FormData) {
 
   await deleteProvisionedUser(userId);
   revalidatePath("/admin/usuarios");
+}
+
+export async function changeMyPasswordAction(formData: FormData) {
+  const user = await requireUser();
+  const currentPassword = String(formData.get("currentPassword") ?? "");
+  const newPassword = String(formData.get("newPassword") ?? "");
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
+
+  if (newPassword.length < 6) {
+    throw new Error("La contrasena debe tener al menos 6 caracteres.");
+  }
+
+  if (newPassword !== confirmPassword) {
+    throw new Error("Las contrasenas no coinciden.");
+  }
+
+  if (currentPassword) {
+    await changePassword(user.id, currentPassword, newPassword);
+  } else {
+    await resetUserPassword(user.id, newPassword);
+  }
+
+  revalidatePath("/");
+}
+
+export async function resetUserPasswordAction(formData: FormData) {
+  await requireAdmin();
+  const userId = requireId(formData.get("userId"), "No encontramos el usuario.");
+  const newPassword = String(formData.get("newPassword") ?? "");
+
+  if (newPassword.length < 6) {
+    throw new Error("La contrasena debe tener al menos 6 caracteres.");
+  }
+
+  await resetUserPassword(userId, newPassword);
+  revalidatePath("/admin/usuarios");
+
+  return newPassword;
 }

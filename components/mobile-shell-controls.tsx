@@ -6,13 +6,15 @@ import { useState } from "react"
 import { markAlertReadAction } from "@/app/actions"
 import { ModeToggle } from "@/components/mode-toggle"
 import { NavLink } from "@/components/nav-link"
+import { UserMenu } from "@/components/user-menu"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import type { InAppAlert } from "@/lib/types"
+import type { InAppAlert, User } from "@/lib/types"
 
 type MobileShellControlsProps = {
   alerts: InAppAlert[]
+  user: User
 }
 
 function alertVariant(type: InAppAlert["type"]) {
@@ -28,7 +30,7 @@ function alertVariant(type: InAppAlert["type"]) {
   }
 }
 
-export function MobileShellControls({ alerts }: MobileShellControlsProps) {
+export function MobileShellControls({ alerts, user }: MobileShellControlsProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [alertsOpen, setAlertsOpen] = useState(false)
   const unreadCount = alerts.filter((alert) => !alert.readAt).length
@@ -109,16 +111,15 @@ export function MobileShellControls({ alerts }: MobileShellControlsProps) {
               <NavLink href="/" label="Hoy" />
             </div>
             <div onClick={() => setMenuOpen(false)}>
-              <NavLink href="/entrenar/libre" label="Libre" />
-            </div>
-            <div onClick={() => setMenuOpen(false)}>
-              <NavLink href="/rutina" label="Rutina" />
-            </div>
-            <div onClick={() => setMenuOpen(false)}>
               <NavLink href="/historial" label="Historial" />
             </div>
-            <div onClick={() => setMenuOpen(false)}>
-              <NavLink href="/plan/importar" label="Importar plan" />
+            {user.role === "admin" && (
+              <div onClick={() => setMenuOpen(false)}>
+                <NavLink href="/admin/usuarios" label="Admin" />
+              </div>
+            )}
+            <div className="pt-2">
+              <UserMenu user={user} />
             </div>
           </nav>
         </Card>

@@ -36,7 +36,7 @@ export default async function NewSessionPage() {
 
   return (
     <SessionCreationFlow
-      user={{ id: user.id, email: user.email, createdAt: user.createdAt }}
+      user={{ id: user.id, email: user.email, role: user.role, createdAt: user.createdAt }}
       alerts={alerts}
       exerciseGroups={exerciseGroups}
     />
