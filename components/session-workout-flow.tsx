@@ -369,6 +369,8 @@ export function SessionWorkoutFlow({ session, action, addAction, exerciseGroups 
   const [isAddingExercise, setIsAddingExercise] = useState(false)
   const exerciseTimerStartRef = useRef<number | null>(null)
   const restTimerEndAtRef = useRef<number | null>(null)
+  const restRemainingRef = useRef(90)
+  restRemainingRef.current = restRemaining
   const [exerciseSetup, setExerciseSetup] = useState<ExerciseSetup>(() => ({
     plannedSets: items[initialActiveIndex]?.exercise.plannedSets ?? 3,
     plannedReps: items[initialActiveIndex]?.exercise.plannedReps ?? "10",
@@ -545,8 +547,7 @@ export function SessionWorkoutFlow({ session, action, addAction, exerciseGroups 
   useEffect(() => {
     if (phase !== "rest" || !restRunning) return
 
-    restTimerEndAtRef.current = Date.now() + restRemaining * 1000
-    let interval: number | undefined
+    restTimerEndAtRef.current = Date.now() + restRemainingRef.current * 1000
 
     const syncRestTimer = () => {
       const endAt = restTimerEndAtRef.current
@@ -557,14 +558,14 @@ export function SessionWorkoutFlow({ session, action, addAction, exerciseGroups 
       setRestRemaining(nextRemaining)
 
       if (nextRemaining === 0) {
-        if (interval !== undefined) window.clearInterval(interval)
+        window.clearInterval(interval)
         finishRest()
       }
     }
 
     syncRestTimer()
 
-    interval = window.setInterval(syncRestTimer, 1000)
+    const interval = window.setInterval(syncRestTimer, 1000)
     const handleVisibilityChange = () => {
       if (!document.hidden) syncRestTimer()
     }
