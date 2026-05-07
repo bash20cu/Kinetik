@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeft, ArrowRight, BellRing, CheckCircle2, Dumbbell, NotebookPen, Plus, Trophy, X } from "lucide-react"
+import { ArrowLeft, ArrowRight, BellRing, CheckCircle2, NotebookPen, Plus, Trophy, X } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import type { SessionDetail, SessionExercise } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -61,6 +62,11 @@ const EXERCISE_MESSAGES = [
   "Muy bien. Cerraste este ejercicio con autoridad."
 ]
 
+const SET_OPTIONS = Array.from({ length: 10 }, (_, index) => String(index + 1))
+const REP_OPTIONS = ["5", "6", "8", "10", "12", "15", "20", "25", "30"]
+const WEIGHT_OPTIONS = ["Sin peso", "5 kg", "10 kg", "15 kg", "20 kg", "25 kg", "30 kg", "35 kg", "40 kg"]
+const DEFAULT_WEIGHT = "20 kg"
+
 function pickMessage(collection: string[], seed: number) {
   return collection[seed % collection.length]
 }
@@ -77,7 +83,7 @@ function getInitialState(exercise: SessionDetail["exercises"][number]): Exercise
   return {
     setsCompleted: exercise.actualSets ?? 0,
     reps: exercise.reps ?? exercise.plannedReps ?? "",
-    weight: exercise.weight ?? "",
+    weight: exercise.weight ?? DEFAULT_WEIGHT,
     status: exercise.status,
     note: exercise.note ?? ""
   }
@@ -183,6 +189,8 @@ type SetRecordCardProps = {
   nextLabel: string | null
   exercise: SessionDetail["exercises"][number]
   state: ExerciseState
+  plannedSets: number
+  plannedReps: string
   setElapsedSeconds: number
   onRepsChange: (value: string) => void
   onWeightChange: (value: string) => void
@@ -200,6 +208,8 @@ function SetRecordCard({
   nextLabel,
   exercise,
   state,
+  plannedSets,
+  plannedReps,
   setElapsedSeconds,
   onRepsChange,
   onWeightChange,
@@ -211,6 +221,7 @@ function SetRecordCard({
   const progress = totalSets === 0 ? 0 : Math.round((completedSets / totalSets) * 100)
   const displayName = getDisplayName(exercise)
   const displayGroup = getDisplayGroup(exercise)
+  const weightOptions = state.weight && !WEIGHT_OPTIONS.includes(state.weight) ? [state.weight, ...WEIGHT_OPTIONS] : WEIGHT_OPTIONS
 
   return (
     <div
@@ -230,8 +241,8 @@ function SetRecordCard({
           <h3 className="text-[1.25rem] uppercase leading-none md:text-[1.9rem]">{displayName}</h3>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {exercise.libraryExercise?.variant ? <Badge variant="secondary">{exercise.libraryExercise.variant}</Badge> : null}
-            {exercise.plannedSets ? <Badge variant="info">{state.setsCompleted}/{exercise.plannedSets} sets</Badge> : null}
-            {exercise.plannedReps ? <Badge variant="warning">{exercise.plannedReps} reps objetivo</Badge> : null}
+            {plannedSets ? <Badge variant="info">{state.setsCompleted}/{plannedSets} sets</Badge> : null}
+            {plannedReps ? <Badge variant="warning">{plannedReps} reps objetivo</Badge> : null}
           </div>
         </div>
       </div>
@@ -261,7 +272,7 @@ function SetRecordCard({
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Sets</p>
             <p className="mt-1 text-xl font-semibold leading-none">
               {state.setsCompleted}
-              <span className="text-sm text-muted-foreground">/{exercise.plannedSets ?? "-"}</span>
+              <span className="text-sm text-muted-foreground">/{plannedSets}</span>
             </p>
           </div>
           <div className="px-3 py-2.5">
@@ -281,7 +292,7 @@ function SetRecordCard({
               id={`record-reps-${exercise.id}`}
               value={state.reps}
               onChange={(event) => onRepsChange(event.target.value)}
-              placeholder={exercise.plannedReps ?? "10"}
+              placeholder={plannedReps || "10"}
               className="h-9 rounded-[0.85rem] text-base"
             />
           </div>
@@ -290,16 +301,18 @@ function SetRecordCard({
             <label htmlFor={`record-weight-${exercise.id}`} className="text-[9px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
               Peso
             </label>
-            <div className="relative">
-              <Dumbbell className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id={`record-weight-${exercise.id}`}
-                value={state.weight}
-                onChange={(event) => onWeightChange(event.target.value)}
-                placeholder="20 kg"
-                className="h-9 rounded-[0.85rem] pl-9 text-base"
-              />
-            </div>
+            <Select
+              id={`record-weight-${exercise.id}`}
+              value={state.weight || DEFAULT_WEIGHT}
+              onChange={(event) => onWeightChange(event.target.value)}
+              className="h-9 rounded-[0.85rem] text-base"
+            >
+              {weightOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </Select>
           </div>
         </div>
 
@@ -374,7 +387,7 @@ export function SessionWorkoutFlow({ session, action, addAction, exerciseGroups 
   const [exerciseSetup, setExerciseSetup] = useState<ExerciseSetup>(() => ({
     plannedSets: items[initialActiveIndex]?.exercise.plannedSets ?? 3,
     plannedReps: items[initialActiveIndex]?.exercise.plannedReps ?? "10",
-    weight: ""
+    weight: DEFAULT_WEIGHT
   }))
 
   const currentItem = items[activeExerciseIndex]
@@ -419,7 +432,7 @@ export function SessionWorkoutFlow({ session, action, addAction, exerciseGroups 
     setExerciseSetup({
       plannedSets: currentItem.exercise.plannedSets ?? 3,
       plannedReps: currentItem.exercise.plannedReps ?? "10",
-      weight: ""
+      weight: DEFAULT_WEIGHT
     })
   }, [activeExerciseIndex, currentItem])
 
@@ -675,7 +688,11 @@ export function SessionWorkoutFlow({ session, action, addAction, exerciseGroups 
   }
 
   function handleSkipSetup() {
-    updateExerciseState(activeExerciseIndex, { status: "in_progress" })
+    updateExerciseState(activeExerciseIndex, {
+      status: "in_progress",
+      reps: exerciseSetup.plannedReps,
+      weight: exerciseSetup.weight
+    })
     setPhase("exercise")
   }
 
@@ -782,35 +799,49 @@ export function SessionWorkoutFlow({ session, action, addAction, exerciseGroups 
                       <div className="grid grid-cols-2 gap-3">
                         <div className="grid gap-1.5">
                           <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Sets</label>
-                          <Input
-                            type="number"
-                            min="1"
-                            value={exerciseSetup.plannedSets}
-                            onChange={(e) => setExerciseSetup((prev) => ({ ...prev, plannedSets: parseInt(e.target.value) || 1 }))}
+                          <Select
+                            value={String(exerciseSetup.plannedSets)}
+                            onChange={(e) => setExerciseSetup((prev) => ({ ...prev, plannedSets: parseInt(e.target.value, 10) || 1 }))}
                             className="h-10 rounded-xl text-lg"
-                          />
+                          >
+                            {SET_OPTIONS.map((option) => (
+                              <option key={option} value={option}>
+                                {option} series
+                              </option>
+                            ))}
+                          </Select>
                         </div>
                         <div className="grid gap-1.5">
                           <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Reps objetivo</label>
-                          <Input
+                          <Select
                             value={exerciseSetup.plannedReps}
                             onChange={(e) => setExerciseSetup((prev) => ({ ...prev, plannedReps: e.target.value }))}
-                            placeholder="10"
                             className="h-10 rounded-xl text-lg"
-                          />
+                          >
+                            {exerciseSetup.plannedReps && !REP_OPTIONS.includes(exerciseSetup.plannedReps) ? (
+                              <option value={exerciseSetup.plannedReps}>{exerciseSetup.plannedReps} reps</option>
+                            ) : null}
+                            {REP_OPTIONS.map((option) => (
+                              <option key={option} value={option}>
+                                {option} reps
+                              </option>
+                            ))}
+                          </Select>
                         </div>
                       </div>
                       <div className="grid gap-1.5">
                         <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Peso</label>
-                        <div className="relative">
-                          <Dumbbell className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                          <Input
-                            value={exerciseSetup.weight}
-                            onChange={(e) => setExerciseSetup((prev) => ({ ...prev, weight: e.target.value }))}
-                            placeholder="20 kg"
-                            className="h-10 rounded-xl pl-9 text-lg"
-                          />
-                        </div>
+                        <Select
+                          value={exerciseSetup.weight || DEFAULT_WEIGHT}
+                          onChange={(e) => setExerciseSetup((prev) => ({ ...prev, weight: e.target.value }))}
+                          className="h-10 rounded-xl text-lg"
+                        >
+                          {WEIGHT_OPTIONS.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </Select>
                       </div>
                     </div>
 
@@ -832,12 +863,12 @@ export function SessionWorkoutFlow({ session, action, addAction, exerciseGroups 
                       id: currentItem.exercise.id,
                       name: displayName,
                       variant: currentItem.exercise.libraryExercise?.variant || null,
-                      plannedSets: exerciseSetup.plannedSets,
-                      plannedReps: exerciseSetup.plannedReps,
                       notes: currentItem.exercise.note
                     }}
                     status={currentExerciseState.status}
                     setsCompleted={currentExerciseState.setsCompleted}
+                    plannedSets={exerciseSetup.plannedSets}
+                    plannedReps={exerciseSetup.plannedReps}
                     setElapsedSeconds={setElapsedSeconds}
                     onSeriesDone={handleSeriesDone}
                     onCompleteExercise={handleCompleteExercise}
@@ -854,6 +885,8 @@ export function SessionWorkoutFlow({ session, action, addAction, exerciseGroups 
                       : null}
                     exercise={currentItem.exercise}
                     state={currentExerciseState}
+                    plannedSets={exerciseSetup.plannedSets}
+                    plannedReps={exerciseSetup.plannedReps}
                     setElapsedSeconds={setElapsedSeconds}
                     onRepsChange={(value) => updateExerciseState(activeExerciseIndex, { reps: value })}
                     onWeightChange={(value) => updateExerciseState(activeExerciseIndex, { weight: value })}

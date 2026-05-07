@@ -14,12 +14,12 @@ type ExerciseActionCardProps = {
     id: string
     name: string
     variant: string | null
-    plannedSets: number | null
-    plannedReps: string | null
     notes: string | null
   }
   status: "pending" | "in_progress" | "completed" | "skipped"
   setsCompleted: number
+  plannedSets: number
+  plannedReps: string
   setElapsedSeconds: number
   onSeriesDone: () => void
   onCompleteExercise: () => void
@@ -32,12 +32,14 @@ export function ExerciseActionCard({
   exercise,
   status,
   setsCompleted,
+  plannedSets,
+  plannedReps,
   setElapsedSeconds,
   onSeriesDone,
   onCompleteExercise,
   className
 }: ExerciseActionCardProps) {
-  const targetSets = exercise.plannedSets ?? 0
+  const targetSets = plannedSets
   const setsLeft = targetSets > 0 ? Math.max(targetSets - setsCompleted, 0) : null
 
   function formatTimer(totalSeconds: number) {
@@ -63,8 +65,8 @@ export function ExerciseActionCard({
           <h3 className="text-[1.35rem] uppercase leading-none md:text-[2rem]">{exercise.name}</h3>
           <div className="mt-2 flex flex-wrap gap-1.5 md:gap-2">
             {exercise.variant ? <Badge variant="secondary">{exercise.variant}</Badge> : null}
-            {exercise.plannedSets ? <Badge variant="info">{exercise.plannedSets} sets</Badge> : null}
-            {exercise.plannedReps ? <Badge variant="warning">{exercise.plannedReps} reps</Badge> : null}
+            {plannedSets ? <Badge variant="info">{plannedSets} sets</Badge> : null}
+            {plannedReps ? <Badge variant="warning">{plannedReps} reps</Badge> : null}
           </div>
         </div>
       </div>
@@ -76,7 +78,7 @@ export function ExerciseActionCard({
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Sets</p>
               <p className="mt-1 text-[1.55rem] font-semibold leading-none md:text-[1.85rem]">
                 {setsCompleted}
-                <span className="text-base text-muted-foreground">/{exercise.plannedSets ?? "-"}</span>
+                <span className="text-base text-muted-foreground">/{plannedSets}</span>
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
                 {setsLeft === null ? "Libre" : `${setsLeft} restantes`}
