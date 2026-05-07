@@ -1,7 +1,7 @@
 "use client"
 
 import { ArrowLeft, ArrowRight, BellRing, CheckCircle2, Dumbbell, NotebookPen, Plus, Trophy, X } from "lucide-react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 
 import { ExerciseActionCard } from "@/components/exercise-action-card"
@@ -367,6 +367,8 @@ export function SessionWorkoutFlow({ session, action, addAction, exerciseGroups 
   const [restAlertMessage, setRestAlertMessage] = useState<string | null>(null)
   const [showAddExercise, setShowAddExercise] = useState(false)
   const [isAddingExercise, setIsAddingExercise] = useState(false)
+  const exerciseTimerStartRef = useRef<number | null>(null)
+  const restTimerEndAtRef = useRef<number | null>(null)
   const [exerciseSetup, setExerciseSetup] = useState<ExerciseSetup>(() => ({
     plannedSets: items[initialActiveIndex]?.exercise.plannedSets ?? 3,
     plannedReps: items[initialActiveIndex]?.exercise.plannedReps ?? "10",
@@ -454,12 +456,28 @@ export function SessionWorkoutFlow({ session, action, addAction, exerciseGroups 
     if (phase !== "exercise") return
 
     setSetElapsedSeconds(0)
+    exerciseTimerStartRef.current = Date.now()
 
-    const interval = window.setInterval(() => {
-      setSetElapsedSeconds((current) => current + 1)
-    }, 1000)
+    const syncExerciseTimer = () => {
+      const startedAt = exerciseTimerStartRef.current
+      if (startedAt === null) return
 
-    return () => window.clearInterval(interval)
+      setSetElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000))
+    }
+
+    syncExerciseTimer()
+
+    const interval = window.setInterval(syncExerciseTimer, 1000)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) syncExerciseTimer()
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    return () => {
+      window.clearInterval(interval)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
   }, [activeExerciseIndex, phase])
 
   async function requestNotifications() {
@@ -527,19 +545,36 @@ export function SessionWorkoutFlow({ session, action, addAction, exerciseGroups 
   useEffect(() => {
     if (phase !== "rest" || !restRunning) return
 
-    const interval = window.setInterval(() => {
-      setRestRemaining((current) => {
-        if (current <= 1) {
-          window.clearInterval(interval)
-          finishRest()
-          return 0
-        }
+    restTimerEndAtRef.current = Date.now() + restRemaining * 1000
+    let interval: number | undefined
 
-        return current - 1
-      })
-    }, 1000)
+    const syncRestTimer = () => {
+      const endAt = restTimerEndAtRef.current
+      if (endAt === null) return
 
-    return () => window.clearInterval(interval)
+      const nextRemaining = Math.max(0, Math.ceil((endAt - Date.now()) / 1000))
+
+      setRestRemaining(nextRemaining)
+
+      if (nextRemaining === 0) {
+        if (interval !== undefined) window.clearInterval(interval)
+        finishRest()
+      }
+    }
+
+    syncRestTimer()
+
+    interval = window.setInterval(syncRestTimer, 1000)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) syncRestTimer()
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    return () => {
+      window.clearInterval(interval)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
   }, [finishRest, phase, restRunning])
 
   function updateExerciseState(index: number, patch: Partial<ExerciseState>) {
@@ -559,6 +594,7 @@ export function SessionWorkoutFlow({ session, action, addAction, exerciseGroups 
     setRestCompletesWorkout(options.completesWorkout)
     setRestDuration(options.seconds ?? 90)
     setRestRemaining(options.seconds ?? 90)
+    restTimerEndAtRef.current = Date.now() + (options.seconds ?? 90) * 1000
     setRestRunning(true)
     setSessionStatus("in_progress")
     setPhase("rest")
@@ -838,11 +874,13 @@ export function SessionWorkoutFlow({ session, action, addAction, exerciseGroups 
                       onToggle={() => setRestRunning((current) => !current)}
                       onReset={() => {
                         setRestRemaining(restDuration)
+                        restTimerEndAtRef.current = Date.now() + restDuration * 1000
                         setRestRunning(false)
                       }}
                       onPreset={(seconds) => {
                         setRestDuration(seconds)
                         setRestRemaining(seconds)
+                        restTimerEndAtRef.current = Date.now() + seconds * 1000
                         setRestRunning(true)
                       }}
                       onSkip={finishRest}

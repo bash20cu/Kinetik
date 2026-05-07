@@ -1,14 +1,11 @@
-import { Bell, Dumbbell } from "lucide-react"
+import { Dumbbell } from "lucide-react"
 import { ReactNode } from "react"
 
-import { markAlertReadAction } from "@/app/actions"
+import { DesktopAlerts } from "@/components/desktop-alerts"
 import { MobileShellControls } from "@/components/mobile-shell-controls"
 import { ModeToggle } from "@/components/mode-toggle"
 import { NavLink } from "@/components/nav-link"
 import { UserMenu } from "@/components/user-menu"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
 import type { InAppAlert, User } from "@/lib/types"
 
 type AppShellProps = {
@@ -17,22 +14,7 @@ type AppShellProps = {
   children: ReactNode
 }
 
-function alertVariant(type: InAppAlert["type"]) {
-  switch (type) {
-    case "success":
-      return "success"
-    case "warning":
-      return "warning"
-    case "error":
-      return "error"
-    default:
-      return "info"
-  }
-}
-
 export function AppShell({ user, alerts = [], children }: AppShellProps) {
-  const unreadCount = alerts.filter((alert) => !alert.readAt).length
-
   return (
     <div className="page-shell">
       <a href="#main-content" className="skip-link">
@@ -73,55 +55,7 @@ export function AppShell({ user, alerts = [], children }: AppShellProps) {
           <div className="hidden flex-col gap-2 lg:min-w-[340px] lg:items-end md:flex">
             <div className="flex flex-wrap items-center justify-end gap-2">
               <ModeToggle />
-              <details className="group relative">
-                <summary className="flex list-none cursor-pointer items-center gap-2 rounded-full border border-border/70 bg-card/80 px-3 py-1.5 text-sm font-medium shadow-sm">
-                  <Bell className="size-4" />
-                  <span>Alertas</span>
-                  <Badge variant={unreadCount > 0 ? "info" : "outline"}>{unreadCount}</Badge>
-                </summary>
-                <Card className="absolute right-0 top-[calc(100%+0.75rem)] z-40 w-[22rem] max-w-[90vw] p-3 shadow-glow">
-                  <div className="mb-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold">Notificaciones</p>
-                      <p className="text-xs text-muted-foreground">
-                        {unreadCount} pendientes
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-2">
-                    {alerts.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-border/70 bg-muted/40 p-3 text-sm text-muted-foreground">
-                        No tienes alertas activas.
-                      </div>
-                    ) : (
-                      alerts.slice(0, 4).map((alert) => (
-                        <div
-                          key={alert.id}
-                          className="rounded-xl border border-border/70 bg-muted/30 p-3"
-                        >
-                          <div className="mb-2 flex items-center gap-2">
-                            <Badge variant={alertVariant(alert.type)}>{alert.type}</Badge>
-                            {alert.readAt ? (
-                              <span className="text-xs text-muted-foreground">Leida</span>
-                            ) : null}
-                          </div>
-                          <p className="text-sm font-semibold">{alert.title}</p>
-                          <p className="mt-1 text-sm text-muted-foreground">{alert.body}</p>
-                          {!alert.readAt ? (
-                            <form action={markAlertReadAction} className="mt-3">
-                              <input type="hidden" name="alertId" value={alert.id} />
-                              <Button type="submit" variant="ghost" size="sm">
-                                Marcar leida
-                              </Button>
-                            </form>
-                          ) : null}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </Card>
-              </details>
+              <DesktopAlerts alerts={alerts} />
             </div>
 
             <UserMenu user={user} />
